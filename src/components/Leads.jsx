@@ -43,6 +43,9 @@ export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustome
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <span className="font-medium text-slate-900">{l.name}</span>
                     <StatusPill status={l.status} />
+                    {l.source && l.source !== "direct" && (
+                      <span className="text-xs text-slate-400 border border-slate-200 rounded-full px-2 py-0.5">via {l.source}</span>
+                    )}
                     <span className="text-xs text-slate-400">{formatDate((l.created_at || "").slice(0, 10))}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">

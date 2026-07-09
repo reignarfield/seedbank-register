@@ -1,8 +1,9 @@
 # Automated reminders
 
 This Edge Function is the "automation" piece: once a day it checks who's due
-for a clean and who's overdue on an invoice, and emails them automatically -
-no need to open the app.
+for a clean, who's overdue on an invoice, who's booked in for tomorrow, and
+who had a job completed yesterday - and emails each of them automatically,
+plus a daily digest to the owner. No need to open the app.
 
 ## 1. Get a Resend account (free tier is plenty to start)
 1. Sign up at resend.com and verify a sending domain (or use their test
@@ -25,10 +26,13 @@ supabase secrets set RESEND_API_KEY=re_xxxxxxxxxxxx
 supabase secrets set FROM_EMAIL="Clear View <jobs@yourdomain.com>"
 supabase secrets set OWNER_EMAIL=you@yourdomain.com
 supabase secrets set BUSINESS_NAME="Clear View Window Cleaning"
+supabase secrets set REVIEW_LINK_URL="https://g.page/r/your-google-review-link"
 ```
 
 (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided automatically
-by Supabase - you don't need to set those.)
+by Supabase - you don't need to set those. `REVIEW_LINK_URL` is optional -
+without it, review-request emails are simply skipped. Find your Google
+review link via your Google Business Profile -> "Ask for reviews" -> Copy link.)
 
 ## 4. Schedule it to run daily
 
@@ -70,3 +74,4 @@ Edit the constants at the top of `index.ts`:
 - `DUE_SOON_LEAD_DAYS` - how many days before a clean is due to start emailing (default 3).
 - `DUE_SOON_RESEND_DAYS` - cooldown before re-emailing the same customer about the same clean (default 21).
 - `INVOICE_OVERDUE_RESEND_DAYS` - cooldown between overdue-invoice reminders (default 5).
+- `NEVER_REPEAT_DAYS` - effectively "once per job" window used for job-day confirmations and review requests (default 400).

@@ -16,6 +16,15 @@ function BigTextInput(props) {
   return <input {...props} className={`${bigInput} ${props.className || ""}`} />;
 }
 
+// Which channel this visit came from (e.g. /request-quote?src=google from a
+// Google Business Profile link), captured automatically - no extra field for
+// the customer to fill in, but lets the Leads inbox show what's working.
+function leadSource() {
+  if (typeof window === "undefined") return "direct";
+  const params = new URLSearchParams(window.location.search);
+  return params.get("src") || params.get("source") || "direct";
+}
+
 export default function PublicQuoteForm() {
   const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", message: "" });
   const [busy, setBusy] = useState(false);
@@ -29,7 +38,7 @@ export default function PublicQuoteForm() {
     setError("");
     setBusy(true);
     try {
-      await submitPublicLead(form);
+      await submitPublicLead({ ...form, source: leadSource() });
       setDone(true);
     } catch (e) {
       setError(e?.message || "Something went wrong sending your request. Please try again.");

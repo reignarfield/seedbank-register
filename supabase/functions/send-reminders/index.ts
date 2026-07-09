@@ -6,7 +6,10 @@
 //      overdue, and emails them a "you're due" reminder (drives rebooking).
 //   2. Finds unpaid invoices past their due date and emails the customer
 //      a payment reminder.
-//   3. Emails the business owner a daily digest - new leads, customers due
+//   3. Emails customers the day before a booked job to confirm it's happening.
+//   4. Emails customers a day after a completed job asking for a review
+//      (only if REVIEW_LINK_URL is set).
+//   5. Emails the business owner a daily digest - new leads, customers due
 //      for a clean, and overdue invoices - so nothing needs checking inside
 //      the app, and nobody who requests a quote on a Sunday gets missed.
 //
@@ -20,12 +23,15 @@
 //   FROM_EMAIL                               - verified sender, e.g. "Clear View <jobs@yourdomain.com>"
 //   OWNER_EMAIL                              - where the daily digest goes
 //   BUSINESS_NAME                            - optional, defaults to "Clear View"
+//   REVIEW_LINK_URL                          - optional, your Google Business review link;
+//                                               review-request emails are skipped without it
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const DUE_SOON_LEAD_DAYS = 3; // start reminding this many days before the clean is due
 const DUE_SOON_RESEND_DAYS = 21; // don't re-email the same customer more often than this
 const INVOICE_OVERDUE_RESEND_DAYS = 5;
+const NEVER_REPEAT_DAYS = 400; // for once-per-job emails (confirmation, review request)
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -33,6 +39,7 @@ const resendApiKey = Deno.env.get("RESEND_API_KEY");
 const fromEmail = Deno.env.get("FROM_EMAIL");
 const ownerEmail = Deno.env.get("OWNER_EMAIL");
 const businessName = Deno.env.get("BUSINESS_NAME") || "Clear View";
+const reviewLinkUrl = Deno.env.get("REVIEW_LINK_URL");
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
@@ -88,7 +95,15 @@ async function logSent(type: string, refId: string) {
 
 Deno.serve(async () => {
   const today = todayStr();
-  const results = { dueSoonEmailed: 0, overdueInvoiceEmailed: 0, newLeadsInDigest: 0, digestSent: false, errors: [] as string[] };
+  const results = {
+    dueSoonEmailed: 0,
+    overdueInvoiceEmailed: 0,
+    jobConfirmationEmailed: 0,
+    reviewRequestEmailed: 0,
+    newLeadsInDigest: 0,
+    digestSent: false,
+    errors: [] as string[],
+  };
 
   try {
     // ---- 1. Customers due for their next clean ----
@@ -153,7 +168,62 @@ Deno.serve(async () => {
       results.overdueInvoiceEmailed++;
     }
 
-    // ---- 3. New leads (so a Sunday request isn't invisible until he opens the app) ----
+    // ---- 3. Job-day confirmations (email the day before a scheduled job) ----
+    const tomorrow = addDays(today, 1);
+    const { data: upcomingJobs, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, scheduled_date, customer_id, customers(name, email)")
+      .eq("status", "scheduled")
+      .eq("scheduled_date", tomorrow);
+    if (jobError) throw jobError;
+
+    for (const j of upcomingJobs || []) {
+      const customer = Array.isArray(j.customers) ? j.customers[0] : j.customers;
+      if (!customer?.email) continue;
+      if (await recentlySent("job_confirmation", j.id, NEVER_REPEAT_DAYS)) continue;
+
+      await sendEmail(
+        customer.email,
+        `${businessName} - we'll see you tomorrow`,
+        `<p>Hi ${customer.name.split(" ")[0]},</p>
+         <p>Just confirming your window clean is booked for tomorrow, ${tomorrow}. No need to do anything - we'll see you then.</p>
+         <p>If that no longer works, reply to this email or give us a call to reschedule.</p>
+         <p>Thanks,<br/>${businessName}</p>`
+      );
+      await logSent("job_confirmation", j.id);
+      results.jobConfirmationEmailed++;
+    }
+
+    // ---- 4. Review requests (a day after a job is completed) ----
+    if (reviewLinkUrl) {
+      const yesterday = addDays(today, -1);
+      const { data: recentlyCompleted, error: reviewJobError } = await supabase
+        .from("jobs")
+        .select("id, completed_at, customer_id, customers(name, email)")
+        .eq("status", "completed")
+        .gte("completed_at", `${yesterday}T00:00:00`)
+        .lt("completed_at", `${today}T00:00:00`);
+      if (reviewJobError) throw reviewJobError;
+
+      for (const j of recentlyCompleted || []) {
+        const customer = Array.isArray(j.customers) ? j.customers[0] : j.customers;
+        if (!customer?.email) continue;
+        if (await recentlySent("review_request", j.id, NEVER_REPEAT_DAYS)) continue;
+
+        await sendEmail(
+          customer.email,
+          `${businessName} - how did we do?`,
+          `<p>Hi ${customer.name.split(" ")[0]},</p>
+           <p>Thanks for having us out! If you have a minute, a quick review would mean a lot to us:</p>
+           <p><a href="${reviewLinkUrl}">${reviewLinkUrl}</a></p>
+           <p>Thanks,<br/>${businessName}</p>`
+        );
+        await logSent("review_request", j.id);
+        results.reviewRequestEmailed++;
+      }
+    }
+
+    // ---- 5. New leads (so a Sunday request isn't invisible until he opens the app) ----
     const { data: newLeads, error: leadError } = await supabase
       .from("leads")
       .select("id, name, phone, email, address, message, created_at")
@@ -163,7 +233,7 @@ Deno.serve(async () => {
 
     results.newLeadsInDigest = (newLeads || []).length;
 
-    // ---- 4. Owner digest ----
+    // ---- 6. Owner digest ----
     if (ownerEmail && (dueSoonList.length > 0 || overdueList.length > 0 || (newLeads || []).length > 0)) {
       const leadRows = (newLeads || [])
         .map((l) => `<li><strong>${l.name}</strong> — ${[l.phone, l.email].filter(Boolean).join(" / ") || "no contact info"}${l.address ? ` — ${l.address}` : ""}${l.message ? `<br/><em>${l.message}</em>` : ""}</li>`)
