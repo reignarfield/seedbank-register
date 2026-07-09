@@ -9,6 +9,13 @@ const BUSINESS_EMAIL = import.meta.env.VITE_BUSINESS_EMAIL || "";
 
 export default function PublicSite() {
   const [tab, setTab] = useState("book");
+  const [selected, setSelected] = useState([]); // array of "Group - Item" strings, in the order picked
+
+  const toggleService = (label) => {
+    setSelected((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]));
+  };
+
+  const requestQuoteForSelected = () => setTab("book");
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
@@ -41,13 +48,22 @@ export default function PublicSite() {
           </button>
           <button
             onClick={() => setTab("pricing")}
-            className={`px-5 py-2 rounded-full text-sm font-medium transition-colors ${tab === "pricing" ? "bg-blue-600 text-white" : "text-slate-500"}`}
+            className={`px-5 py-2 rounded-full text-sm font-medium transition-colors relative ${tab === "pricing" ? "bg-blue-600 text-white" : "text-slate-500"}`}
           >
             Pricing
+            {selected.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-semibold">
+                {selected.length}
+              </span>
+            )}
           </button>
         </div>
 
-        {tab === "book" ? <PublicQuoteForm /> : <PublicPricing />}
+        {tab === "book" ? (
+          <PublicQuoteForm initialServices={selected} />
+        ) : (
+          <PublicPricing selected={selected} onToggle={toggleService} onRequestQuote={requestQuoteForSelected} />
+        )}
 
         {(BUSINESS_PHONE || BUSINESS_EMAIL) && (
           <div className="flex items-center justify-center gap-5 mt-5 text-sm text-slate-500">
@@ -64,11 +80,8 @@ export default function PublicSite() {
           </div>
         )}
 
-        <div className="text-center mt-8 space-y-1">
+        <div className="text-center mt-8">
           <div className="text-xs text-slate-300">Tydie Cleaning · ABN 55 202 207 046</div>
-          <a href="/team" className="text-xs text-slate-300 hover:text-slate-400">
-            Staff sign in
-          </a>
         </div>
       </div>
     </div>

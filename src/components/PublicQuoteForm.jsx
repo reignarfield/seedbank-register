@@ -22,8 +22,15 @@ function leadSource() {
   return params.get("src") || params.get("source") || "direct";
 }
 
-export default function PublicQuoteForm() {
-  const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", message: "" });
+// Turns a list of ticked pricing-page items into a starting message, e.g.
+// "Window Cleaning - Standard 3 bedroom house" -> a readable request line.
+function messageFromServices(services) {
+  if (!services || services.length === 0) return "";
+  return `I'd like a quote for:\n${services.map((s) => `- ${s}`).join("\n")}`;
+}
+
+export default function PublicQuoteForm({ initialServices = [] }) {
+  const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", message: messageFromServices(initialServices) });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
