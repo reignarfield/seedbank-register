@@ -1,5 +1,5 @@
 import React from "react";
-import { Droplets, LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Wrench, LogIn, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Globe, Wrench, LogIn, LogOut } from "lucide-react";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -7,6 +7,7 @@ const TABS = [
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "billing", label: "Billing", icon: Receipt },
   { id: "leads", label: "Leads", icon: Inbox },
+  { id: "customerpage", label: "Customer Page", icon: Globe },
   { id: "dev", label: "Dev", icon: Wrench },
 ];
 
@@ -16,11 +17,11 @@ export default function NavBar({ view, setView, session, onLoginClick, onLogout,
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
-              <Droplets size={18} className="text-white" strokeWidth={2.25} />
+            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 overflow-hidden">
+              <img src="/tydie-icon-48.png" alt="" width={36} height={36} className="w-full h-full object-cover" />
             </div>
-            <div className="leading-tight">
-              <div className="font-semibold text-lg text-slate-900 tracking-tight">Clear View</div>
+            <div className="leading-tight whitespace-nowrap">
+              <div className="font-semibold text-lg text-slate-900 tracking-tight">Tydie Cleaning</div>
               <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400 -mt-0.5">Job Manager</div>
             </div>
           </div>
@@ -33,7 +34,7 @@ export default function NavBar({ view, setView, session, onLoginClick, onLogout,
                   <button
                     key={t.id}
                     onClick={() => setView(t.id)}
-                    className={`relative flex items-center gap-1.5 px-3 lg:px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    className={`relative flex items-center gap-1.5 px-3 lg:px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                       active ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"
                     }`}
                   >

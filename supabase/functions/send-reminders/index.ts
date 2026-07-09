@@ -20,9 +20,9 @@
 // Required secrets (set with `supabase secrets set NAME=value`):
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  - auto-provided by Supabase
 //   RESEND_API_KEY                           - from resend.com
-//   FROM_EMAIL                               - verified sender, e.g. "Clear View <jobs@yourdomain.com>"
+//   FROM_EMAIL                               - verified sender, e.g. "Tydie Cleaning <jobs@yourdomain.com>"
 //   OWNER_EMAIL                              - where the daily digest goes
-//   BUSINESS_NAME                            - optional, defaults to "Clear View"
+//   BUSINESS_NAME                            - optional, defaults to "Tydie Cleaning"
 //   REVIEW_LINK_URL                          - optional, your Google Business review link;
 //                                               review-request emails are skipped without it
 
@@ -39,7 +39,7 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const resendApiKey = Deno.env.get("RESEND_API_KEY");
 const fromEmail = Deno.env.get("FROM_EMAIL");
 const ownerEmail = Deno.env.get("OWNER_EMAIL");
-const businessName = Deno.env.get("BUSINESS_NAME") || "Clear View";
+const businessName = Deno.env.get("BUSINESS_NAME") || "Tydie Cleaning";
 const reviewLinkUrl = Deno.env.get("REVIEW_LINK_URL");
 
 const supabase = createClient(supabaseUrl, serviceRoleKey);

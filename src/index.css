@@ -1,4 +1,21 @@
 @import "tailwindcss";
 
+/* Tydie Cleaning brand blue, sampled from the logo (#0068ab), replacing
+   Tailwind's default blue scale so every existing blue-* class across the
+   app renders as the real brand color instead of stock Tailwind blue. */
+@theme {
+  --color-blue-50: #f0f9ff;
+  --color-blue-100: #dbf1ff;
+  --color-blue-200: #b2e1ff;
+  --color-blue-300: #7acbff;
+  --color-blue-400: #33afff;
+  --color-blue-500: #0092f0;
+  --color-blue-600: #0068ab;
+  --color-blue-700: #00548a;
+  --color-blue-800: #00416b;
+  --color-blue-900: #002f4c;
+  --color-blue-950: #001c2e;
+}
+
 :root { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 .font-serif { font-family: ui-serif, Georgia, "Times New Roman", serif; }

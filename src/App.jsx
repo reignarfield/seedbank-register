@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Loader2, AlertCircle, Droplets, LogIn } from "lucide-react";
+import { Loader2, AlertCircle, LogIn } from "lucide-react";
 import {
   getSession,
   onAuthChange,
@@ -36,8 +36,10 @@ import Schedule from "./components/Schedule";
 import Billing from "./components/Billing";
 import Leads from "./components/Leads";
 import Dev from "./components/Dev";
-import PublicQuoteForm from "./components/PublicQuoteForm";
+import CustomerPage from "./components/CustomerPage";
+import PublicSite from "./components/PublicSite";
 import { Button } from "./components/ui";
+import logo from "./assets/tydie-logo.png";
 
 // Everything under /team is the staff-only admin app (sign-in required).
 // Every other path - the homepage, /request-quote, anything else someone
@@ -229,7 +231,7 @@ export default function App() {
   const pathname = typeof window !== "undefined" ? window.location.pathname.replace(/\/+$/, "") || "/" : "/";
   const isStaffRoute = pathname === STAFF_PATH_PREFIX || pathname.startsWith(`${STAFF_PATH_PREFIX}/`);
   if (!isStaffRoute) {
-    return <PublicQuoteForm />;
+    return <PublicSite />;
   }
 
   if (loading) {
@@ -244,10 +246,8 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
         <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
-            <Droplets size={26} className="text-white" strokeWidth={2.25} />
-          </div>
-          <h1 className="text-xl font-semibold text-slate-900">Clear View Job Manager</h1>
+          <img src={logo} alt="Tydie Cleaning" className="w-full max-w-[220px] mx-auto rounded-xl shadow-sm mb-5" />
+          <h1 className="text-xl font-semibold text-slate-900">Job Manager</h1>
           <p className="text-sm text-slate-500 mt-1 mb-5">Staff area. Sign in to manage customers, jobs, quotes and invoices.</p>
           <Button onClick={() => setShowLogin(true)} className="mx-auto">
             <LogIn size={15} /> Sign in
@@ -334,6 +334,8 @@ export default function App() {
       {view === "leads" && (
         <Leads leads={leads} onSetStatus={setLeadStatus} onDelete={removeLead} onConvertToCustomer={convertLeadToCustomer} onCreateQuote={createQuoteFromLead} />
       )}
+
+      {view === "customerpage" && <CustomerPage />}
 
       {view === "dev" && <Dev />}
 

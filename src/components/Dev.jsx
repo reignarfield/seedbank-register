@@ -6,6 +6,9 @@ import { Card, EmptyState } from "./ui";
 // rather than timestamped as they shipped; add a date once entries are
 // logged as they happen.
 const CHANGELOG = [
+  { title: "Real branding", detail: "Swapped the placeholder name/icon for the actual Tydie Cleaning logo and brand blue, everywhere in the app." },
+  { title: "Customer Page tab", detail: "Staff-only tab that embeds the live public site, so it's easy to see exactly what a customer sees without leaving the app." },
+  { title: "Public pricing page", detail: "A simplified, grouped price list (window cleaning, pressure cleaning, solar, car cleaning, house/office cleaning, bond cleans, add-ons) alongside the booking form." },
   { title: "Split the site into a public booking page and a staff area", detail: "The homepage is now the booking page for anyone; staff sign in at /team instead of hitting a sign-in wall on the homepage." },
   { title: "Dev tab", detail: "This tab - a changelog, and a reserved spot for other projects." },
   { title: "Automatic invoicing on job completion", detail: "Completing a job with a price now raises its invoice automatically instead of needing a separate step." },

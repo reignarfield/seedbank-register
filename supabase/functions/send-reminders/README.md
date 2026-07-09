@@ -23,9 +23,9 @@ supabase functions deploy send-reminders
 
 ```
 supabase secrets set RESEND_API_KEY=re_xxxxxxxxxxxx
-supabase secrets set FROM_EMAIL="Clear View <jobs@yourdomain.com>"
+supabase secrets set FROM_EMAIL="Tydie Cleaning <jobs@yourdomain.com>"
 supabase secrets set OWNER_EMAIL=you@yourdomain.com
-supabase secrets set BUSINESS_NAME="Clear View Window Cleaning"
+supabase secrets set BUSINESS_NAME="Tydie Cleaning"
 supabase secrets set REVIEW_LINK_URL="https://g.page/r/your-google-review-link"
 ```
 
