@@ -57,6 +57,14 @@ export default function PublicQuoteForm() {
           <div className="font-semibold text-2xl text-slate-900">Clear View Window Cleaning</div>
         </div>
 
+        <div className="flex items-center justify-center gap-x-4 gap-y-1 flex-wrap mb-6 text-sm text-slate-500">
+          <span>Fully insured</span>
+          <span className="text-slate-300">·</span>
+          <span>Free quotes</span>
+          <span className="text-slate-300">·</span>
+          <span>Flexible scheduling</span>
+        </div>
+
         {!done && BUSINESS_PHONE && (
           <a
             href={`tel:${BUSINESS_PHONE.replace(/[^0-9+]/g, "")}`}
@@ -128,6 +136,12 @@ export default function PublicQuoteForm() {
             )}
           </div>
         )}
+
+        <div className="text-center mt-8">
+          <a href="/team" className="text-xs text-slate-300 hover:text-slate-400">
+            Staff sign in
+          </a>
+        </div>
       </div>
     </div>
   );

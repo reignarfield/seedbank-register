@@ -1,5 +1,5 @@
 import React from "react";
-import { Droplets, LayoutDashboard, Users, CalendarDays, Receipt, Inbox, LogIn, LogOut } from "lucide-react";
+import { Droplets, LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Wrench, LogIn, LogOut } from "lucide-react";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -7,6 +7,7 @@ const TABS = [
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "billing", label: "Billing", icon: Receipt },
   { id: "leads", label: "Leads", icon: Inbox },
+  { id: "dev", label: "Dev", icon: Wrench },
 ];
 
 export default function NavBar({ view, setView, session, onLoginClick, onLogout, leadBadge }) {

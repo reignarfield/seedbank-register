@@ -174,3 +174,43 @@ export async function submitPublicLead({ name, phone, email, address, message, s
   const { error } = await supabase.from("leads").insert({ name, phone, email, address, message, source: source || "direct" });
   if (error) throw error;
 }
+
+// ---------------------------------------------------------------------------
+// Expenses
+// ---------------------------------------------------------------------------
+export async function fetchExpenses() {
+  const { data, error } = await supabase.from("expenses").select("*").order("expense_date", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertExpense(expense) {
+  const { data, error } = await supabase.from("expenses").upsert(expense, { onConflict: "id" }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteExpense(id) {
+  const { error } = await supabase.from("expenses").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Renewals
+// ---------------------------------------------------------------------------
+export async function fetchRenewals() {
+  const { data, error } = await supabase.from("renewals").select("*").order("due_date", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertRenewal(renewal) {
+  const { data, error } = await supabase.from("renewals").upsert(renewal, { onConflict: "id" }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteRenewal(id) {
+  const { error } = await supabase.from("renewals").delete().eq("id", id);
+  if (error) throw error;
+}

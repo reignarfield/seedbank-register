@@ -21,6 +21,12 @@ import {
   fetchLeads,
   upsertLead,
   deleteLead,
+  fetchExpenses,
+  upsertExpense,
+  deleteExpense,
+  fetchRenewals,
+  upsertRenewal,
+  deleteRenewal,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
 import LoginModal from "./components/LoginModal";
@@ -29,8 +35,17 @@ import Customers from "./components/Customers";
 import Schedule from "./components/Schedule";
 import Billing from "./components/Billing";
 import Leads from "./components/Leads";
+import Dev from "./components/Dev";
 import PublicQuoteForm from "./components/PublicQuoteForm";
 import { Button } from "./components/ui";
+
+// Everything under /team is the staff-only admin app (sign-in required).
+// Every other path - the homepage, /request-quote, anything else someone
+// types - is the public booking page. Staff access isn't a secret path for
+// security (Supabase auth + RLS is what actually protects the data) - it's
+// just so a casual visitor never lands on a sign-in wall instead of a way
+// to book.
+const STAFF_PATH_PREFIX = "/team";
 
 function emptyCustomerDraft(overrides = {}) {
   return { name: "", phone: "", email: "", address: "", notes: "", access_notes: "", frequency_weeks: "", last_service_date: "", status: "active", ...overrides };
@@ -48,6 +63,8 @@ export default function App() {
   const [quotes, setQuotes] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [leads, setLeads] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [renewals, setRenewals] = useState([]);
 
   // Cross-module "hand off" drafts: e.g. accepting a quote should be able to
   // drop straight into scheduling that customer's first job.
@@ -59,12 +76,22 @@ export default function App() {
   const reload = async () => {
     setError("");
     try {
-      const [c, j, q, i, l] = await Promise.all([fetchCustomers(), fetchJobs(), fetchQuotes(), fetchInvoices(), fetchLeads()]);
+      const [c, j, q, i, l, ex, re] = await Promise.all([
+        fetchCustomers(),
+        fetchJobs(),
+        fetchQuotes(),
+        fetchInvoices(),
+        fetchLeads(),
+        fetchExpenses(),
+        fetchRenewals(),
+      ]);
       setCustomers(c);
       setJobs(j);
       setQuotes(q);
       setInvoices(i);
       setLeads(l);
+      setExpenses(ex);
+      setRenewals(re);
     } catch (e) {
       setError("Could not load data: " + (e?.message || "unknown error"));
     }
@@ -92,6 +119,8 @@ export default function App() {
     setQuotes([]);
     setInvoices([]);
     setLeads([]);
+    setExpenses([]);
+    setRenewals([]);
     setView("dashboard");
   };
 
@@ -147,6 +176,26 @@ export default function App() {
     await reload();
   };
 
+  // ---- Expenses ----
+  const saveExpense = async (ex) => {
+    await upsertExpense(ex);
+    await reload();
+  };
+  const removeExpense = async (id) => {
+    await deleteExpense(id);
+    await reload();
+  };
+
+  // ---- Renewals ----
+  const saveRenewal = async (r) => {
+    await upsertRenewal(r);
+    await reload();
+  };
+  const removeRenewal = async (id) => {
+    await deleteRenewal(id);
+    await reload();
+  };
+
   // ---- Leads ----
   const setLeadStatus = async (lead, status) => {
     await upsertLead({ ...lead, status });
@@ -175,8 +224,11 @@ export default function App() {
 
   const newLeadCount = leads.filter((l) => l.status === "new").length;
 
-  // Public, unauthenticated "request a quote" page - lives outside the app shell entirely.
-  if (typeof window !== "undefined" && window.location.pathname.replace(/\/+$/, "") === "/request-quote") {
+  // Public booking page - this is the default for every path except /team,
+  // so the homepage itself is the "just let me book something" experience.
+  const pathname = typeof window !== "undefined" ? window.location.pathname.replace(/\/+$/, "") || "/" : "/";
+  const isStaffRoute = pathname === STAFF_PATH_PREFIX || pathname.startsWith(`${STAFF_PATH_PREFIX}/`);
+  if (!isStaffRoute) {
     return <PublicQuoteForm />;
   }
 
@@ -196,7 +248,7 @@ export default function App() {
             <Droplets size={26} className="text-white" strokeWidth={2.25} />
           </div>
           <h1 className="text-xl font-semibold text-slate-900">Clear View Job Manager</h1>
-          <p className="text-sm text-slate-500 mt-1 mb-5">Sign in to manage customers, jobs, quotes and invoices.</p>
+          <p className="text-sm text-slate-500 mt-1 mb-5">Staff area. Sign in to manage customers, jobs, quotes and invoices.</p>
           <Button onClick={() => setShowLogin(true)} className="mx-auto">
             <LogIn size={15} /> Sign in
           </Button>
@@ -218,7 +270,19 @@ export default function App() {
       )}
 
       {view === "dashboard" && (
-        <Dashboard customers={customers} jobs={jobs} invoices={invoices} leads={leads} setView={setView} onScheduleCustomer={scheduleForCustomer} onMarkPaid={markPaid} />
+        <Dashboard
+          customers={customers}
+          jobs={jobs}
+          invoices={invoices}
+          leads={leads}
+          expenses={expenses}
+          renewals={renewals}
+          setView={setView}
+          onScheduleCustomer={scheduleForCustomer}
+          onMarkPaid={markPaid}
+          onSaveRenewal={saveRenewal}
+          onDeleteRenewal={removeRenewal}
+        />
       )}
 
       {view === "customers" && (
@@ -249,6 +313,7 @@ export default function App() {
         <Billing
           quotes={quotes}
           invoices={invoices}
+          expenses={expenses}
           customers={customers}
           jobs={jobs}
           onSaveQuote={saveQuote}
@@ -256,6 +321,8 @@ export default function App() {
           onSaveInvoice={saveInvoice}
           onDeleteInvoice={removeInvoice}
           onMarkInvoicePaid={markPaid}
+          onSaveExpense={saveExpense}
+          onDeleteExpense={removeExpense}
           onScheduleFromQuote={scheduleForCustomer}
           quoteDraft={quoteDraft}
           onQuoteDraftConsumed={() => setQuoteDraft(null)}
@@ -267,6 +334,8 @@ export default function App() {
       {view === "leads" && (
         <Leads leads={leads} onSetStatus={setLeadStatus} onDelete={removeLead} onConvertToCustomer={convertLeadToCustomer} onCreateQuote={createQuoteFromLead} />
       )}
+
+      {view === "dev" && <Dev />}
 
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onSignedIn={() => setShowLogin(false)} />}
     </div>

@@ -1,7 +1,45 @@
-import React, { useMemo } from "react";
-import { AlertCircle, CalendarClock, CalendarDays, Inbox, Receipt, Users } from "lucide-react";
-import { Card, SectionTitle, StatusPill, EmptyState, money, Button } from "./ui";
+import React, { useMemo, useState } from "react";
+import { AlertCircle, CalendarClock, CalendarDays, Inbox, Receipt, ShieldAlert, TrendingUp, Users, Plus, Loader2 } from "lucide-react";
+import { Card, SectionTitle, StatusPill, EmptyState, money, Button, TextInput, Field } from "./ui";
 import { dueStatus, formatDate, todayStr, daysBetween } from "../lib/dates";
+
+const RENEWAL_LEAD_DAYS = 30;
+
+function RenewalQuickAdd({ onSave, onCancel }) {
+  const [name, setName] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const canSave = name.trim() && dueDate;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave({ name: name.trim(), due_date: dueDate });
+      onCancel();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border border-slate-200 rounded-lg p-3 space-y-2 mb-2">
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="What">
+          <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Public liability insurance" />
+        </Field>
+        <Field label="Due">
+          <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        </Field>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" className="!px-3 !py-1.5 !text-xs" onClick={onCancel}>Cancel</Button>
+        <Button className="!px-3 !py-1.5 !text-xs" onClick={save} disabled={!canSave || saving}>
+          {saving ? <Loader2 size={13} className="animate-spin" /> : null} Add
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function StatCard({ icon: Icon, label, value, tone = "text-slate-900" }) {
   return (
@@ -17,8 +55,9 @@ function StatCard({ icon: Icon, label, value, tone = "text-slate-900" }) {
   );
 }
 
-export default function Dashboard({ customers, jobs, invoices, leads, setView, onScheduleCustomer, onMarkPaid }) {
+export default function Dashboard({ customers, jobs, invoices, leads, expenses, renewals, setView, onScheduleCustomer, onMarkPaid, onSaveRenewal, onDeleteRenewal }) {
   const today = todayStr();
+  const [addingRenewal, setAddingRenewal] = useState(false);
 
   const attention = useMemo(() => {
     return customers
@@ -45,6 +84,18 @@ export default function Dashboard({ customers, jobs, invoices, leads, setView, o
 
   const newLeads = useMemo(() => leads.filter((l) => l.status === "new"), [leads]);
 
+  const thisMonth = today.slice(0, 7);
+  const profitThisMonth = useMemo(() => {
+    const income = invoices.filter((i) => i.status === "paid" && (i.paid_date || "").slice(0, 7) === thisMonth).reduce((sum, i) => sum + Number(i.amount || 0), 0);
+    const spent = expenses.filter((e) => e.expense_date.slice(0, 7) === thisMonth).reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    return { income, spent, net: income - spent };
+  }, [invoices, expenses, thisMonth]);
+
+  const upcomingRenewals = useMemo(
+    () => [...renewals].filter((r) => daysBetween(today, r.due_date) <= RENEWAL_LEAD_DAYS).sort((a, b) => a.due_date.localeCompare(b.due_date)),
+    [renewals, today]
+  );
+
   const customerById = (id) => customers.find((c) => c.id === id);
 
   return (
@@ -54,11 +105,12 @@ export default function Dashboard({ customers, jobs, invoices, leads, setView, o
         <p className="text-sm text-slate-500 mt-1">What needs your attention today.</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard icon={CalendarDays} label="Jobs this week" value={upcomingJobs.length} />
         <StatCard icon={CalendarClock} label="Due / overdue customers" value={attention.length} tone={attention.some((a) => a.status === "overdue") ? "text-rose-600" : "text-slate-900"} />
         <StatCard icon={Receipt} label="Unpaid invoices" value={money(unpaidTotal)} tone={overdueInvoices.length ? "text-rose-600" : "text-slate-900"} />
         <StatCard icon={Inbox} label="New leads" value={newLeads.length} tone={newLeads.length ? "text-blue-600" : "text-slate-900"} />
+        <StatCard icon={TrendingUp} label="Profit this month" value={money(profitThisMonth.net)} tone={profitThisMonth.net < 0 ? "text-rose-600" : "text-emerald-600"} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -158,6 +210,43 @@ export default function Dashboard({ customers, jobs, invoices, leads, setView, o
                   <span className="text-xs text-slate-400 shrink-0">{formatDate(l.created_at.slice(0, 10))}</span>
                 </div>
               ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-4 sm:p-5">
+          <SectionTitle
+            action={
+              !addingRenewal && (
+                <button onClick={() => setAddingRenewal(true)} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
+                  <Plus size={12} /> Add
+                </button>
+              )
+            }
+          >
+            Upcoming renewals
+          </SectionTitle>
+          {addingRenewal && <RenewalQuickAdd onSave={onSaveRenewal} onCancel={() => setAddingRenewal(false)} />}
+          {upcomingRenewals.length === 0 ? (
+            <EmptyState icon={ShieldAlert} title="Nothing due in the next 30 days." subtitle="Insurance, licences, anything with a renewal date." />
+          ) : (
+            <div className="space-y-2">
+              {upcomingRenewals.map((r) => {
+                const overdue = r.due_date < today;
+                return (
+                  <div key={r.id} className={`flex items-center justify-between gap-3 border rounded-lg px-3 py-2.5 ${overdue ? "border-rose-100 bg-rose-50/40" : "border-slate-100"}`}>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-slate-900 truncate">{r.name}</div>
+                      <div className={`text-xs flex items-center gap-1 ${overdue ? "text-rose-600" : "text-slate-500"}`}>
+                        {overdue && <AlertCircle size={11} />} {overdue ? "Overdue since" : "Due"} {formatDate(r.due_date)}
+                      </div>
+                    </div>
+                    <button onClick={() => onDeleteRenewal(r.id)} className="text-xs text-slate-400 hover:text-rose-600 shrink-0">
+                      Done
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

@@ -32,6 +32,7 @@ const DUE_SOON_LEAD_DAYS = 3; // start reminding this many days before the clean
 const DUE_SOON_RESEND_DAYS = 21; // don't re-email the same customer more often than this
 const INVOICE_OVERDUE_RESEND_DAYS = 5;
 const NEVER_REPEAT_DAYS = 400; // for once-per-job emails (confirmation, review request)
+const RENEWAL_LEAD_DAYS = 30; // how far ahead to flag renewals in the owner digest
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -101,6 +102,7 @@ Deno.serve(async () => {
     jobConfirmationEmailed: 0,
     reviewRequestEmailed: 0,
     newLeadsInDigest: 0,
+    renewalsInDigest: 0,
     digestSent: false,
     errors: [] as string[],
   };
@@ -233,19 +235,32 @@ Deno.serve(async () => {
 
     results.newLeadsInDigest = (newLeads || []).length;
 
+    // ---- 5b. Upcoming/overdue renewals (insurance, licences) - owner-only, no per-item dedupe ----
+    const { data: renewals, error: renewalError } = await supabase
+      .from("renewals")
+      .select("id, name, due_date")
+      .lte("due_date", addDays(today, RENEWAL_LEAD_DAYS))
+      .order("due_date", { ascending: true });
+    if (renewalError) throw renewalError;
+    results.renewalsInDigest = (renewals || []).length;
+
     // ---- 6. Owner digest ----
-    if (ownerEmail && (dueSoonList.length > 0 || overdueList.length > 0 || (newLeads || []).length > 0)) {
+    if (ownerEmail && (dueSoonList.length > 0 || overdueList.length > 0 || (newLeads || []).length > 0 || (renewals || []).length > 0)) {
       const leadRows = (newLeads || [])
         .map((l) => `<li><strong>${l.name}</strong> — ${[l.phone, l.email].filter(Boolean).join(" / ") || "no contact info"}${l.address ? ` — ${l.address}` : ""}${l.message ? `<br/><em>${l.message}</em>` : ""}</li>`)
         .join("");
       const dueSoonRows = dueSoonList.map((d) => `<li>${d.name} — next clean ${d.nextDue}</li>`).join("");
       const overdueRows = overdueList.map((o) => `<li>${o.name} — $${Number(o.amount).toFixed(2)} due ${o.dueDate}</li>`).join("");
+      const renewalRows = (renewals || [])
+        .map((r) => `<li>${r.name} — ${r.due_date < today ? "was due" : "due"} ${r.due_date}</li>`)
+        .join("");
       await sendEmail(
         ownerEmail,
         `${businessName} daily digest: ${(newLeads || []).length} new leads, ${dueSoonList.length} due, ${overdueList.length} overdue invoices`,
         `<p>New leads waiting (open the app's Leads tab to quote or convert):</p><ul>${leadRows || "<li>None</li>"}</ul>
          <p>Customers due for a clean:</p><ul>${dueSoonRows || "<li>None</li>"}</ul>
-         <p>Overdue invoices:</p><ul>${overdueRows || "<li>None</li>"}</ul>`
+         <p>Overdue invoices:</p><ul>${overdueRows || "<li>None</li>"}</ul>
+         <p>Renewals coming up:</p><ul>${renewalRows || "<li>None</li>"}</ul>`
       );
       results.digestSent = true;
     }
