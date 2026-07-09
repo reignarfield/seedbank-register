@@ -140,7 +140,8 @@ begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$ language plpgsql
+set search_path = '';
 
 create trigger customers_set_updated_at before update on public.customers
   for each row execute function public.set_updated_at();
