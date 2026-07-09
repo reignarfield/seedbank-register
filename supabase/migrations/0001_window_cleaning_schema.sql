@@ -117,10 +117,11 @@ create table public.reminder_log (
   id uuid primary key default gen_random_uuid(),
   type text not null check (type in ('due_soon', 'invoice_overdue')),
   ref_id uuid not null,       -- customer_id for due_soon, invoice_id for invoice_overdue
+  sent_date date not null default current_date, -- plain column, not an expression, so it can be indexed
   sent_at timestamptz not null default now()
 );
 
-create unique index reminder_log_dedupe_idx on public.reminder_log(type, ref_id, (sent_at::date));
+create unique index reminder_log_dedupe_idx on public.reminder_log(type, ref_id, sent_date);
 
 -- ---------------------------------------------------------------------------
 -- updated_at triggers
