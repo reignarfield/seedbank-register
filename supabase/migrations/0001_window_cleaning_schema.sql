@@ -14,9 +14,17 @@
 -- is public (that's how the quote-request form works for strangers).
 
 -- ---------------------------------------------------------------------------
--- Clean slate: drop the old seedbank table if present
+-- Clean slate: safe to run this whole script again from scratch at any time,
+-- including after a partial/failed run - every table it creates is dropped
+-- first, cascading away its indexes, triggers and policies with it.
 -- ---------------------------------------------------------------------------
 drop table if exists public.seedlots cascade;
+drop table if exists public.reminder_log cascade;
+drop table if exists public.invoices cascade;
+drop table if exists public.quotes cascade;
+drop table if exists public.jobs cascade;
+drop table if exists public.leads cascade;
+drop table if exists public.customers cascade;
 
 -- ---------------------------------------------------------------------------
 -- customers
