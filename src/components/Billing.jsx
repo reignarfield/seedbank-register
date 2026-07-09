@@ -17,6 +17,7 @@ export default function Billing({
   onSaveExpense,
   onDeleteExpense,
   onScheduleFromQuote,
+  onConvertQuoteAndSchedule,
   quoteDraft,
   onQuoteDraftConsumed,
   invoiceDraft,
@@ -58,6 +59,7 @@ export default function Billing({
           onSave={onSaveQuote}
           onDelete={onDeleteQuote}
           onScheduleFromQuote={onScheduleFromQuote}
+          onConvertAndSchedule={onConvertQuoteAndSchedule}
           draft={quoteDraft}
           onDraftConsumed={onQuoteDraftConsumed}
         />

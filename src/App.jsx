@@ -38,6 +38,7 @@ import Leads from "./components/Leads";
 import Dev from "./components/Dev";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
+import PasswordRecovery from "./components/PasswordRecovery";
 import { Button } from "./components/ui";
 import logo from "./assets/tydie-logo.png";
 
@@ -59,6 +60,7 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [recovering, setRecovering] = useState(false);
 
   const [customers, setCustomers] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -106,7 +108,8 @@ export default function App() {
       if (s) await reload();
       setLoading(false);
     })();
-    const unsub = onAuthChange(async (s) => {
+    const unsub = onAuthChange(async (s, event) => {
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
       setSession(s);
       if (s) await reload();
     });
@@ -224,6 +227,28 @@ export default function App() {
     setView("schedule");
   };
 
+  // An accepted quote that came straight from a lead (no customer_id) has no
+  // "Schedule job" button, because there's no customer to schedule against
+  // yet - this closes that gap in one action instead of requiring him to
+  // separately remember to convert the lead first.
+  const convertQuoteToCustomerAndSchedule = async (quote) => {
+    const customer = await upsertCustomer(
+      emptyCustomerDraft({
+        name: quote.contact_name || "New customer",
+        phone: quote.contact_phone || "",
+        email: quote.contact_email || "",
+        notes: quote.description || "",
+      })
+    );
+    await upsertQuote({ ...quote, customer_id: customer.id });
+    if (quote.lead_id) {
+      const lead = leads.find((l) => l.id === quote.lead_id);
+      if (lead) await setLeadStatus(lead, "won");
+    }
+    await reload();
+    scheduleForCustomer(customer);
+  };
+
   const newLeadCount = leads.filter((l) => l.status === "new").length;
 
   // Public booking page - this is the default for every path except /team,
@@ -240,6 +265,10 @@ export default function App() {
         <Loader2 size={24} className="animate-spin text-blue-600" />
       </div>
     );
+  }
+
+  if (recovering) {
+    return <PasswordRecovery onDone={() => setRecovering(false)} />;
   }
 
   if (!session) {
@@ -324,6 +353,7 @@ export default function App() {
           onSaveExpense={saveExpense}
           onDeleteExpense={removeExpense}
           onScheduleFromQuote={scheduleForCustomer}
+          onConvertQuoteAndSchedule={convertQuoteToCustomerAndSchedule}
           quoteDraft={quoteDraft}
           onQuoteDraftConsumed={() => setQuoteDraft(null)}
           invoiceDraft={invoiceDraft}

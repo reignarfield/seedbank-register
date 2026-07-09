@@ -10,7 +10,7 @@ export async function getSession() {
 }
 
 export function onAuthChange(cb) {
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => cb(session));
+  const { data } = supabase.auth.onAuthStateChange((event, session) => cb(session, event));
   return () => data.subscription.unsubscribe();
 }
 
@@ -22,6 +22,21 @@ export async function signIn(email, password) {
 
 export async function signOut() {
   await supabase.auth.signOut();
+}
+
+// Sends a "reset your password" email with a link back to /team, which logs
+// the browser into a temporary recovery session (Supabase fires a
+// PASSWORD_RECOVERY auth event) so updatePassword() can be called next.
+export async function requestPasswordReset(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/team`,
+  });
+  if (error) throw error;
+}
+
+export async function updatePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,9 +84,15 @@ export async function deleteJob(id) {
 // If the job has a price, an invoice is raised automatically so completing a
 // job is the only manual step - no separate "now go invoice it" chore.
 export async function completeJob(job) {
+  const jobUpdates = { status: "completed", completed_at: new Date().toISOString() };
+  // A price supplied at completion time (e.g. via the "what's this worth?"
+  // prompt when the job was booked with no price) is persisted onto the job
+  // itself too, not just used to raise the invoice below.
+  if (job.price != null && Number(job.price) > 0) jobUpdates.price = Number(job.price);
+
   const { data: updatedJob, error: jobError } = await supabase
     .from("jobs")
-    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .update(jobUpdates)
     .eq("id", job.id)
     .select()
     .single();

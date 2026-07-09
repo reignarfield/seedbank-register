@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, CalendarDays, Loader2, X, Check, Ban, Trash2 } from "lucide-react";
+import { Plus, CalendarDays, Loader2, X, Check, Ban, Trash2, AlertTriangle } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
 import { formatDate, todayStr, nextDueDate } from "../lib/dates";
 
@@ -52,10 +52,63 @@ function JobForm({ initial, customers, onCancel, onSave, saving }) {
   );
 }
 
+// Shown instead of completing immediately when a job has no price set, so
+// he's asked once at the moment it matters rather than the invoice silently
+// never getting created.
+function CompleteNoPricePrompt({ job, customerName, onCancel, onConfirm }) {
+  const [price, setPrice] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const finish = async (withPrice) => {
+    setSaving(true);
+    try {
+      await onConfirm(withPrice ? Number(price) : null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4" onClick={onCancel}>
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
+        <AlertTriangle size={24} className="text-amber-500 mb-2" />
+        <h2 className="font-semibold text-lg text-slate-900 mb-1">No price on this job</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          {customerName ? `${customerName}'s job` : "This job"} has no price, so completing it won't raise an invoice.
+          Add one now, or skip and invoice it later yourself.
+        </p>
+        <Field label="Price (optional)">
+          <TextInput
+            type="number"
+            step="0.01"
+            inputMode="decimal"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="0.00"
+            autoFocus
+          />
+        </Field>
+        <div className="flex items-center gap-2 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => finish(false)} disabled={saving}>
+            Skip - complete without invoicing
+          </Button>
+          <Button className="flex-1" onClick={() => finish(true)} disabled={saving || !price}>
+            {saving ? <Loader2 size={15} className="animate-spin" /> : null} Save price & complete
+          </Button>
+        </div>
+        <button onClick={onCancel} className="text-xs text-slate-400 hover:text-slate-600 mt-3">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Schedule({ customers, jobs, onSave, onComplete, onCancelJob, onDelete, draftCustomer, onDraftConsumed }) {
   const [filter, setFilter] = useState("upcoming");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [completingNoPrice, setCompletingNoPrice] = useState(null);
 
   useEffect(() => {
     if (draftCustomer) {
@@ -86,6 +139,21 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
     } finally {
       setSaving(false);
     }
+  };
+
+  const hasPrice = (j) => j.price != null && Number(j.price) > 0;
+
+  const requestComplete = (j) => {
+    if (hasPrice(j)) {
+      onComplete(j);
+    } else {
+      setCompletingNoPrice(j);
+    }
+  };
+
+  const confirmCompleteNoPrice = async (price) => {
+    await onComplete({ ...completingNoPrice, price });
+    setCompletingNoPrice(null);
   };
 
   const FILTERS = [
@@ -136,11 +204,15 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
                   </button>
                   <div className="text-right shrink-0">
                     <div className="text-sm font-medium text-slate-700">{formatDate(j.scheduled_date)}</div>
-                    {j.price != null && j.price !== "" && <div className="text-xs text-slate-400 tabular-nums">{money(j.price)}</div>}
+                    {hasPrice(j) ? (
+                      <div className="text-xs text-slate-400 tabular-nums">{money(j.price)}</div>
+                    ) : (
+                      j.status === "scheduled" && <div className="text-xs text-amber-600">No price set</div>
+                    )}
                   </div>
                   {j.status === "scheduled" && (
                     <div className="flex items-center gap-1 shrink-0">
-                      <button title="Mark complete" onClick={() => onComplete(j)} className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50">
+                      <button title="Mark complete" onClick={() => requestComplete(j)} className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50">
                         <Check size={16} />
                       </button>
                       <button title="Cancel job" onClick={() => onCancelJob(j)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100">
@@ -161,6 +233,15 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
       )}
 
       {editing && <JobForm initial={editing} customers={customers} onCancel={() => setEditing(null)} onSave={save} saving={saving} />}
+
+      {completingNoPrice && (
+        <CompleteNoPricePrompt
+          job={completingNoPrice}
+          customerName={customerById(completingNoPrice.customer_id)?.name}
+          onCancel={() => setCompletingNoPrice(null)}
+          onConfirm={confirmCompleteNoPrice}
+        />
+      )}
     </div>
   );
 }

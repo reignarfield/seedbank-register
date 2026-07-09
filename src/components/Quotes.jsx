@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, FileText, Loader2, X, Trash2, Send, ThumbsUp, ThumbsDown, CalendarPlus } from "lucide-react";
+import { Plus, FileText, Loader2, X, Trash2, Send, ThumbsUp, ThumbsDown, CalendarPlus, UserPlus } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
 import { formatDate, todayStr } from "../lib/dates";
 
@@ -86,7 +86,7 @@ function QuoteForm({ initial, customers, onCancel, onSave, onDelete, saving }) {
   );
 }
 
-export default function Quotes({ quotes, customers, onSave, onDelete, onScheduleFromQuote, draft, onDraftConsumed }) {
+export default function Quotes({ quotes, customers, onSave, onDelete, onScheduleFromQuote, onConvertAndSchedule, draft, onDraftConsumed }) {
   const [filter, setFilter] = useState("all");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -183,6 +183,15 @@ export default function Quotes({ quotes, customers, onSave, onDelete, onSchedule
                     {q.status === "accepted" && c && (
                       <button title="Schedule job" onClick={() => onScheduleFromQuote(c)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50">
                         <CalendarPlus size={15} />
+                      </button>
+                    )}
+                    {q.status === "accepted" && !c && (
+                      <button
+                        title="Add as customer and schedule"
+                        onClick={() => onConvertAndSchedule(q)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 text-xs font-medium"
+                      >
+                        <UserPlus size={14} /> Add &amp; schedule
                       </button>
                     )}
                   </div>

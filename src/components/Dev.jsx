@@ -6,6 +6,9 @@ import { Card, EmptyState } from "./ui";
 // rather than timestamped as they shipped; add a date once entries are
 // logged as they happen.
 const CHANGELOG = [
+  { title: "One-page booking flow", detail: "Pricing is now built into the booking page itself as collapsible categories - tick anything you want quoted, see a running summary, then your details at the bottom." },
+  { title: "Password reset", detail: "\"Forgot password?\" on the sign-in screen - no more being locked out with nobody able to get back in." },
+  { title: "Workflow continuity fixes", detail: "An accepted quote from a lead (not yet a customer) now has an \"Add & schedule\" action instead of a dead end. Completing a job with no price now asks for one instead of silently skipping the invoice." },
   { title: "Real branding", detail: "Swapped the placeholder name/icon for the actual Tydie Cleaning logo and brand blue, everywhere in the app." },
   { title: "Customer Page tab", detail: "Staff-only tab that embeds the live public site, so it's easy to see exactly what a customer sees without leaving the app." },
   { title: "Public pricing page", detail: "A simplified, grouped price list (window cleaning, pressure cleaning, solar, car cleaning, house/office cleaning, bond cleans, add-ons) alongside the booking form." },
