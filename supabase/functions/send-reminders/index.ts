@@ -6,8 +6,9 @@
 //      overdue, and emails them a "you're due" reminder (drives rebooking).
 //   2. Finds unpaid invoices past their due date and emails the customer
 //      a payment reminder.
-//   3. Emails the business owner a daily digest so nothing needs checking
-//      inside the app.
+//   3. Emails the business owner a daily digest - new leads, customers due
+//      for a clean, and overdue invoices - so nothing needs checking inside
+//      the app, and nobody who requests a quote on a Sunday gets missed.
 //
 // A row is written to reminder_log for every email sent, and re-sends are
 // suppressed for a cooldown window (see the *_RESEND_DAYS constants) so the
@@ -87,7 +88,7 @@ async function logSent(type: string, refId: string) {
 
 Deno.serve(async () => {
   const today = todayStr();
-  const results = { dueSoonEmailed: 0, overdueInvoiceEmailed: 0, digestSent: false, errors: [] as string[] };
+  const results = { dueSoonEmailed: 0, overdueInvoiceEmailed: 0, newLeadsInDigest: 0, digestSent: false, errors: [] as string[] };
 
   try {
     // ---- 1. Customers due for their next clean ----
@@ -152,14 +153,28 @@ Deno.serve(async () => {
       results.overdueInvoiceEmailed++;
     }
 
-    // ---- 3. Owner digest ----
-    if (ownerEmail && (dueSoonList.length > 0 || overdueList.length > 0)) {
+    // ---- 3. New leads (so a Sunday request isn't invisible until he opens the app) ----
+    const { data: newLeads, error: leadError } = await supabase
+      .from("leads")
+      .select("id, name, phone, email, address, message, created_at")
+      .eq("status", "new")
+      .order("created_at", { ascending: true });
+    if (leadError) throw leadError;
+
+    results.newLeadsInDigest = (newLeads || []).length;
+
+    // ---- 4. Owner digest ----
+    if (ownerEmail && (dueSoonList.length > 0 || overdueList.length > 0 || (newLeads || []).length > 0)) {
+      const leadRows = (newLeads || [])
+        .map((l) => `<li><strong>${l.name}</strong> — ${[l.phone, l.email].filter(Boolean).join(" / ") || "no contact info"}${l.address ? ` — ${l.address}` : ""}${l.message ? `<br/><em>${l.message}</em>` : ""}</li>`)
+        .join("");
       const dueSoonRows = dueSoonList.map((d) => `<li>${d.name} — next clean ${d.nextDue}</li>`).join("");
       const overdueRows = overdueList.map((o) => `<li>${o.name} — $${Number(o.amount).toFixed(2)} due ${o.dueDate}</li>`).join("");
       await sendEmail(
         ownerEmail,
-        `${businessName} daily digest: ${dueSoonList.length} due, ${overdueList.length} overdue invoices`,
-        `<p>Customers due for a clean:</p><ul>${dueSoonRows || "<li>None</li>"}</ul>
+        `${businessName} daily digest: ${(newLeads || []).length} new leads, ${dueSoonList.length} due, ${overdueList.length} overdue invoices`,
+        `<p>New leads waiting (open the app's Leads tab to quote or convert):</p><ul>${leadRows || "<li>None</li>"}</ul>
+         <p>Customers due for a clean:</p><ul>${dueSoonRows || "<li>None</li>"}</ul>
          <p>Overdue invoices:</p><ul>${overdueRows || "<li>None</li>"}</ul>`
       );
       results.digestSent = true;
