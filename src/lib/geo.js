@@ -28,6 +28,26 @@ export function roadEstimateKm(a, b) {
   return Math.round(straight * ROAD_FACTOR * 10) / 10;
 }
 
+// Real driving distance (km) between two coordinate points via the public
+// OSRM routing service - no API key. Falls back to the straight-line road
+// estimate if OSRM is unreachable, so this never blocks. Returns null only
+// when a point is missing.
+export async function drivingDistanceKm(a, b) {
+  if (!a || !b || a.lat == null || b.lat == null) return null;
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const metres = data?.routes?.[0]?.distance;
+      if (typeof metres === "number") return Math.round((metres / 1000) * 10) / 10;
+    }
+  } catch {
+    // fall through to the estimate
+  }
+  return roadEstimateKm(a, b);
+}
+
 // Geocode a free-text address to {lat, lng} via Nominatim. Returns null on
 // no match or any network/error - callers always fall back to manual entry.
 // Biased to Australia since that's where the business operates.

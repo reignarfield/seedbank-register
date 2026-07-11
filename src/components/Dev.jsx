@@ -6,7 +6,8 @@ import { Card, EmptyState } from "./ui";
 // rather than timestamped as they shipped; add a date once entries are
 // logged as they happen.
 const CHANGELOG = [
-  { title: "Mileage tracking", detail: "Log work km for the cents-per-km tax deduction. Set a home base once and trips to a customer auto-estimate the distance from their address - and it remembers the real distance per customer after the first time. Shows your FY total, the $ estimate, and the 5,000 km cap." },
+  { title: "Simpler mileage tab", detail: "Stripped back to one glance number and a big Log-a-trip button - no scrolling, quick during the day. Distances now calculate from real map routing between addresses (type any From/To and tap Calculate), with home base and rate tucked behind the settings gear." },
+  { title: "Mileage tracking", detail: "Log work km for the cents-per-km tax deduction. Set a home base once and trips to a customer auto-calculate the distance from their address - and it remembers the real distance per customer after the first time. Shows your FY total, the $ estimate, and the 5,000 km cap. Also on the dashboard." },
   { title: "One-page booking flow", detail: "Pricing is now built into the booking page itself as collapsible categories - tick anything you want quoted, see a running summary, then your details at the bottom." },
   { title: "Password reset", detail: "\"Forgot password?\" on the sign-in screen - no more being locked out with nobody able to get back in." },
   { title: "Workflow continuity fixes", detail: "An accepted quote from a lead (not yet a customer) now has an \"Add & schedule\" action instead of a dead end. Completing a job with no price now asks for one instead of silently skipping the invoice." },
