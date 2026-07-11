@@ -43,6 +43,21 @@ export function formatDateLong(dateStr) {
   return formatDate(dateStr, { day: "numeric", month: "long", year: "numeric" });
 }
 
+// The Australian financial year runs 1 July - 30 June. Returns the "YYYY-MM-DD"
+// of the 1 July that starts the FY containing `dateStr` (defaults to today).
+export function financialYearStart(dateStr = todayStr()) {
+  const d = parseDateStr(dateStr);
+  const year = d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1; // month 6 = July
+  return `${year}-07-01`;
+}
+
+// A short label for the FY containing `dateStr`, e.g. "2026-27".
+export function financialYearLabel(dateStr = todayStr()) {
+  const start = financialYearStart(dateStr);
+  const startYear = Number(start.slice(0, 4));
+  return `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
+}
+
 // Next due date for a recurring customer, derived from last_service_date +
 // frequency_weeks. Returns null if the customer isn't on a recurring plan or
 // has never been serviced yet.

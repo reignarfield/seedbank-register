@@ -1,11 +1,12 @@
 import React from "react";
-import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Globe, Wrench, LogIn, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Globe, Wrench, LogIn, LogOut } from "lucide-react";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "customers", label: "Customers", icon: Users },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "billing", label: "Billing", icon: Receipt },
+  { id: "mileage", label: "Mileage", icon: Car },
   { id: "leads", label: "Leads", icon: Inbox },
   { id: "customerpage", label: "Customer Page", icon: Globe },
   { id: "dev", label: "Dev", icon: Wrench },

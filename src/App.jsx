@@ -27,6 +27,12 @@ import {
   fetchRenewals,
   upsertRenewal,
   deleteRenewal,
+  fetchSettings,
+  saveSettings,
+  fetchTrips,
+  upsertTrip,
+  deleteTrip,
+  saveCustomerCoords,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
 import LoginModal from "./components/LoginModal";
@@ -36,6 +42,7 @@ import Schedule from "./components/Schedule";
 import Billing from "./components/Billing";
 import Leads from "./components/Leads";
 import Dev from "./components/Dev";
+import Mileage from "./components/Mileage";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
 import PasswordRecovery from "./components/PasswordRecovery";
@@ -69,6 +76,8 @@ export default function App() {
   const [leads, setLeads] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [renewals, setRenewals] = useState([]);
+  const [trips, setTrips] = useState([]);
+  const [settings, setSettings] = useState({ home_base_address: null, home_base_lat: null, home_base_lng: null, mileage_rate_cents: 88 });
 
   // Cross-module "hand off" drafts: e.g. accepting a quote should be able to
   // drop straight into scheduling that customer's first job.
@@ -80,7 +89,7 @@ export default function App() {
   const reload = async () => {
     setError("");
     try {
-      const [c, j, q, i, l, ex, re] = await Promise.all([
+      const [c, j, q, i, l, ex, re, tr, st] = await Promise.all([
         fetchCustomers(),
         fetchJobs(),
         fetchQuotes(),
@@ -88,6 +97,8 @@ export default function App() {
         fetchLeads(),
         fetchExpenses(),
         fetchRenewals(),
+        fetchTrips(),
+        fetchSettings(),
       ]);
       setCustomers(c);
       setJobs(j);
@@ -96,6 +107,8 @@ export default function App() {
       setLeads(l);
       setExpenses(ex);
       setRenewals(re);
+      setTrips(tr);
+      setSettings(st);
     } catch (e) {
       setError("Could not load data: " + (e?.message || "unknown error"));
     }
@@ -126,6 +139,7 @@ export default function App() {
     setLeads([]);
     setExpenses([]);
     setRenewals([]);
+    setTrips([]);
     setView("dashboard");
   };
 
@@ -199,6 +213,25 @@ export default function App() {
   const removeRenewal = async (id) => {
     await deleteRenewal(id);
     await reload();
+  };
+
+  // ---- Mileage ----
+  const saveTrip = async (t) => {
+    await upsertTrip(t);
+    await reload();
+  };
+  const removeTrip = async (id) => {
+    await deleteTrip(id);
+    await reload();
+  };
+  const saveMileageSettings = async (s) => {
+    const saved = await saveSettings({ ...settings, ...s });
+    setSettings(saved);
+  };
+  // Best-effort geocode cache - update local state immediately, persist quietly.
+  const cacheCustomerCoords = (id, lat, lng) => {
+    setCustomers((prev) => prev.map((c) => (c.id === id ? { ...c, lat, lng } : c)));
+    saveCustomerCoords(id, lat, lng).catch(() => {});
   };
 
   // ---- Leads ----
@@ -363,6 +396,18 @@ export default function App() {
 
       {view === "leads" && (
         <Leads leads={leads} onSetStatus={setLeadStatus} onDelete={removeLead} onConvertToCustomer={convertLeadToCustomer} onCreateQuote={createQuoteFromLead} />
+      )}
+
+      {view === "mileage" && (
+        <Mileage
+          trips={trips}
+          customers={customers}
+          settings={settings}
+          onSaveTrip={saveTrip}
+          onDeleteTrip={removeTrip}
+          onSaveSettings={saveMileageSettings}
+          onCacheCoords={cacheCustomerCoords}
+        />
       )}
 
       {view === "customerpage" && <CustomerPage />}

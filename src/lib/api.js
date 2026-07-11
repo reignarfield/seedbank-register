@@ -235,3 +235,45 @@ export async function deleteRenewal(id) {
   const { error } = await supabase.from("renewals").delete().eq("id", id);
   if (error) throw error;
 }
+
+// ---------------------------------------------------------------------------
+// Settings (single row: home base + mileage rate)
+// ---------------------------------------------------------------------------
+export async function fetchSettings() {
+  const { data, error } = await supabase.from("settings").select("*").eq("id", true).maybeSingle();
+  if (error) throw error;
+  return data || { id: true, home_base_address: null, home_base_lat: null, home_base_lng: null, mileage_rate_cents: 88 };
+}
+
+export async function saveSettings(settings) {
+  const { data, error } = await supabase.from("settings").upsert({ ...settings, id: true }, { onConflict: "id" }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Trips (mileage)
+// ---------------------------------------------------------------------------
+export async function fetchTrips() {
+  const { data, error } = await supabase.from("trips").select("*").order("trip_date", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertTrip(trip) {
+  const { data, error } = await supabase.from("trips").upsert(trip, { onConflict: "id" }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteTrip(id) {
+  const { error } = await supabase.from("trips").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// Cache a geocoded address's coordinates onto the customer so it's only ever
+// geocoded once. Best-effort - a failure here shouldn't block anything.
+export async function saveCustomerCoords(id, lat, lng) {
+  const { error } = await supabase.from("customers").update({ lat, lng }).eq("id", id);
+  if (error) throw error;
+}
