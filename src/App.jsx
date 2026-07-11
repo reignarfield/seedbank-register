@@ -339,6 +339,7 @@ export default function App() {
           leads={leads}
           expenses={expenses}
           renewals={renewals}
+          trips={trips}
           setView={setView}
           onScheduleCustomer={scheduleForCustomer}
           onMarkPaid={markPaid}

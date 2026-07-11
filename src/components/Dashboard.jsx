@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { AlertCircle, CalendarClock, CalendarDays, Inbox, Receipt, ShieldAlert, TrendingUp, Users, Plus, Loader2 } from "lucide-react";
+import { AlertCircle, CalendarClock, CalendarDays, Car, Inbox, Receipt, ShieldAlert, TrendingUp, Users, Plus, Loader2 } from "lucide-react";
 import { Card, SectionTitle, StatusPill, EmptyState, money, Button, TextInput, Field } from "./ui";
-import { dueStatus, formatDate, todayStr, daysBetween } from "../lib/dates";
+import { dueStatus, formatDate, todayStr, daysBetween, financialYearStart } from "../lib/dates";
 
 const RENEWAL_LEAD_DAYS = 30;
 
@@ -41,9 +41,9 @@ function RenewalQuickAdd({ onSave, onCancel }) {
   );
 }
 
-function StatCard({ icon: Icon, label, value, tone = "text-slate-900" }) {
-  return (
-    <Card className="p-4 flex items-center gap-3">
+function StatCard({ icon: Icon, label, value, tone = "text-slate-900", onClick }) {
+  const inner = (
+    <>
       <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
         <Icon size={18} className="text-blue-600" />
       </div>
@@ -51,11 +51,19 @@ function StatCard({ icon: Icon, label, value, tone = "text-slate-900" }) {
         <div className={`text-xl font-semibold tabular-nums ${tone}`}>{value}</div>
         <div className="text-xs text-slate-500">{label}</div>
       </div>
-    </Card>
+    </>
   );
+  if (onClick) {
+    return (
+      <button onClick={onClick} className="text-left">
+        <Card className="p-4 flex items-center gap-3 h-full hover:border-blue-300 transition-colors">{inner}</Card>
+      </button>
+    );
+  }
+  return <Card className="p-4 flex items-center gap-3">{inner}</Card>;
 }
 
-export default function Dashboard({ customers, jobs, invoices, leads, expenses, renewals, setView, onScheduleCustomer, onMarkPaid, onSaveRenewal, onDeleteRenewal }) {
+export default function Dashboard({ customers, jobs, invoices, leads, expenses, renewals, trips, setView, onScheduleCustomer, onMarkPaid, onSaveRenewal, onDeleteRenewal }) {
   const today = todayStr();
   const [addingRenewal, setAddingRenewal] = useState(false);
 
@@ -96,6 +104,11 @@ export default function Dashboard({ customers, jobs, invoices, leads, expenses, 
     [renewals, today]
   );
 
+  const fyKm = useMemo(() => {
+    const fyStart = financialYearStart();
+    return (trips || []).filter((t) => t.trip_date >= fyStart).reduce((sum, t) => sum + Number(t.distance_km || 0), 0);
+  }, [trips]);
+
   const customerById = (id) => customers.find((c) => c.id === id);
 
   return (
@@ -105,12 +118,13 @@ export default function Dashboard({ customers, jobs, invoices, leads, expenses, 
         <p className="text-sm text-slate-500 mt-1">What needs your attention today.</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <StatCard icon={CalendarDays} label="Jobs this week" value={upcomingJobs.length} />
         <StatCard icon={CalendarClock} label="Due / overdue customers" value={attention.length} tone={attention.some((a) => a.status === "overdue") ? "text-rose-600" : "text-slate-900"} />
         <StatCard icon={Receipt} label="Unpaid invoices" value={money(unpaidTotal)} tone={overdueInvoices.length ? "text-rose-600" : "text-slate-900"} />
         <StatCard icon={Inbox} label="New leads" value={newLeads.length} tone={newLeads.length ? "text-blue-600" : "text-slate-900"} />
         <StatCard icon={TrendingUp} label="Profit this month" value={money(profitThisMonth.net)} tone={profitThisMonth.net < 0 ? "text-rose-600" : "text-emerald-600"} />
+        <StatCard icon={Car} label="Work km this year" value={`${fyKm.toFixed(fyKm % 1 === 0 ? 0 : 1)} km`} onClick={() => setView("mileage")} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
