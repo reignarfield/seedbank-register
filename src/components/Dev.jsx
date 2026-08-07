@@ -6,6 +6,9 @@ import { Card, EmptyState } from "./ui";
 // rather than timestamped as they shipped; add a date once entries are
 // logged as they happen.
 const CHANGELOG = [
+  { title: "One-tap sign in for /team", detail: "Signing in is now the page itself instead of a button behind a tap - go to /team and the form's already there. The public booking site is unaffected and stays the default for everyone else." },
+  { title: "Reach out to lapsed customers", detail: "Customers tab has a \"Reach out again\" filter for active, one-off customers not serviced in 6+ months - the ones the recurring due-date system doesn't catch, straight from Tyson's feedback." },
+  { title: "Before-you-go checklist and tomorrow's confirmations", detail: "Dashboard now shows an editable packing checklist on days with jobs on, plus a one-tap text link to confirm tomorrow's bookings - no missed gear, no forgotten reminders." },
   { title: "Simpler mileage tab", detail: "Stripped back to one glance number and a big Log-a-trip button - no scrolling, quick during the day. Distances now calculate from real map routing between addresses (type any From/To and tap Calculate), with home base and rate tucked behind the settings gear." },
   { title: "Mileage tracking", detail: "Log work km for the cents-per-km tax deduction. Set a home base once and trips to a customer auto-calculate the distance from their address - and it remembers the real distance per customer after the first time. Shows your FY total, the $ estimate, and the 5,000 km cap. Also on the dashboard." },
   { title: "One-page booking flow", detail: "Pricing is now built into the booking page itself as collapsible categories - tick anything you want quoted, see a running summary, then your details at the bottom." },

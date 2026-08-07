@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Loader2, AlertCircle, LogIn } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import {
   getSession,
   onAuthChange,
@@ -46,7 +46,7 @@ import Mileage from "./components/Mileage";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
 import PasswordRecovery from "./components/PasswordRecovery";
-import { Button } from "./components/ui";
+import SignInForm from "./components/SignInForm";
 import logo from "./assets/tydie-logo.png";
 
 // Everything under /team is the staff-only admin app (sign-in required).
@@ -77,7 +77,13 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [renewals, setRenewals] = useState([]);
   const [trips, setTrips] = useState([]);
-  const [settings, setSettings] = useState({ home_base_address: null, home_base_lat: null, home_base_lng: null, mileage_rate_cents: 88 });
+  const [settings, setSettings] = useState({
+    home_base_address: null,
+    home_base_lat: null,
+    home_base_lng: null,
+    mileage_rate_cents: 88,
+    packing_checklist: ["Squeegees", "Extension pole", "Towels / cloths", "Screwdriver", "Bucket & soap"],
+  });
 
   // Cross-module "hand off" drafts: e.g. accepting a quote should be able to
   // drop straight into scheduling that customer's first job.
@@ -306,16 +312,13 @@ export default function App() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="text-center">
-          <img src={logo} alt="Tydie Cleaning" className="w-full max-w-[220px] mx-auto rounded-xl shadow-sm mb-5" />
-          <h1 className="text-xl font-semibold text-slate-900">Job Manager</h1>
-          <p className="text-sm text-slate-500 mt-1 mb-5">Staff area. Sign in to manage customers, jobs, quotes and invoices.</p>
-          <Button onClick={() => setShowLogin(true)} className="mx-auto">
-            <LogIn size={15} /> Sign in
-          </Button>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-10">
+        <div className="w-full max-w-sm">
+          <img src={logo} alt="Tydie Cleaning" className="w-full max-w-[220px] mx-auto rounded-xl shadow-sm mb-6" />
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <SignInForm />
+          </div>
         </div>
-        {showLogin && <LoginModal onClose={() => setShowLogin(false)} onSignedIn={() => setShowLogin(false)} />}
       </div>
     );
   }
@@ -340,11 +343,13 @@ export default function App() {
           expenses={expenses}
           renewals={renewals}
           trips={trips}
+          checklist={settings.packing_checklist || []}
           setView={setView}
           onScheduleCustomer={scheduleForCustomer}
           onMarkPaid={markPaid}
           onSaveRenewal={saveRenewal}
           onDeleteRenewal={removeRenewal}
+          onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
         />
       )}
 

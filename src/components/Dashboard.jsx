@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { AlertCircle, CalendarClock, CalendarDays, Car, Inbox, Receipt, ShieldAlert, TrendingUp, Users, Plus, Loader2 } from "lucide-react";
 import { Card, SectionTitle, StatusPill, EmptyState, money, Button, TextInput, Field } from "./ui";
 import { dueStatus, formatDate, todayStr, daysBetween, financialYearStart } from "../lib/dates";
+import MorningCheck from "./MorningCheck";
 
 const RENEWAL_LEAD_DAYS = 30;
 
@@ -63,7 +64,22 @@ function StatCard({ icon: Icon, label, value, tone = "text-slate-900", onClick }
   return <Card className="p-4 flex items-center gap-3">{inner}</Card>;
 }
 
-export default function Dashboard({ customers, jobs, invoices, leads, expenses, renewals, trips, setView, onScheduleCustomer, onMarkPaid, onSaveRenewal, onDeleteRenewal }) {
+export default function Dashboard({
+  customers,
+  jobs,
+  invoices,
+  leads,
+  expenses,
+  renewals,
+  trips,
+  checklist,
+  setView,
+  onScheduleCustomer,
+  onMarkPaid,
+  onSaveRenewal,
+  onDeleteRenewal,
+  onSaveChecklist,
+}) {
   const today = todayStr();
   const [addingRenewal, setAddingRenewal] = useState(false);
 
@@ -117,6 +133,8 @@ export default function Dashboard({ customers, jobs, invoices, leads, expenses, 
         <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
         <p className="text-sm text-slate-500 mt-1">What needs your attention today.</p>
       </div>
+
+      <MorningCheck jobs={jobs} customers={customers} checklist={checklist} onSaveChecklist={onSaveChecklist} />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <StatCard icon={CalendarDays} label="Jobs this week" value={upcomingJobs.length} />

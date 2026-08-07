@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Users, Loader2, Trash2, X } from "lucide-react";
+import { Search, Plus, Users, Loader2, Trash2, X, History } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState } from "./ui";
-import { dueStatus, formatDate, nextDueDate } from "../lib/dates";
+import { dueStatus, formatDate, nextDueDate, daysBetween, todayStr } from "../lib/dates";
+
+// A customer worth reaching out to again: not on a recurring schedule (so the
+// due-date system never resurfaces them), still active, and it's been a
+// while since the last job. Distinct from the recurring due/overdue list.
+const LAPSED_DAYS = 180;
 
 const FREQUENCY_OPTIONS = [
   { value: "", label: "One-off (not recurring)" },
@@ -93,6 +98,14 @@ export default function Customers({ customers, jobs, onSave, onDelete, draft, on
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [showLapsed, setShowLapsed] = useState(false);
+
+  const lapsed = useMemo(() => {
+    const today = todayStr();
+    return customers
+      .filter((c) => c.status === "active" && !c.frequency_weeks && c.last_service_date && daysBetween(c.last_service_date, today) >= LAPSED_DAYS)
+      .sort((a, b) => a.last_service_date.localeCompare(b.last_service_date)); // longest since serviced first
+  }, [customers]);
 
   useEffect(() => {
     if (draft) {
@@ -103,10 +116,11 @@ export default function Customers({ customers, jobs, onSave, onDelete, draft, on
   }, [draft]);
 
   const filtered = useMemo(() => {
-    if (!query.trim()) return customers;
+    const base = showLapsed ? lapsed : customers;
+    if (!query.trim()) return base;
     const q = query.toLowerCase();
-    return customers.filter((c) => [c.name, c.address, c.phone, c.email].filter(Boolean).some((v) => v.toLowerCase().includes(q)));
-  }, [customers, query]);
+    return base.filter((c) => [c.name, c.address, c.phone, c.email].filter(Boolean).some((v) => v.toLowerCase().includes(q)));
+  }, [customers, lapsed, showLapsed, query]);
 
   const jobCountByCustomer = useMemo(() => {
     const m = new Map();
@@ -138,7 +152,7 @@ export default function Customers({ customers, jobs, onSave, onDelete, draft, on
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, address, phone, email..." className="!pl-9" />
@@ -148,12 +162,36 @@ export default function Customers({ customers, jobs, onSave, onDelete, draft, on
         </Button>
       </div>
 
+      <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 mb-4 w-fit">
+        <button
+          onClick={() => setShowLapsed(false)}
+          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${!showLapsed ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
+        >
+          All customers
+        </button>
+        <button
+          onClick={() => setShowLapsed(true)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${showLapsed ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
+        >
+          <History size={13} /> Reach out again {lapsed.length > 0 && `(${lapsed.length})`}
+        </button>
+      </div>
+
+      {showLapsed && (
+        <p className="text-xs text-slate-400 mb-3 px-1">
+          Active, one-off customers not serviced in {LAPSED_DAYS / 30}+ months — worth a call to see if they want another clean.
+        </p>
+      )}
+
       <div className="text-xs uppercase tracking-[0.14em] text-slate-400 mb-2 px-1">
         {filtered.length} {filtered.length === 1 ? "customer" : "customers"}
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={Users} title={customers.length === 0 ? "No customers yet." : "No customers match your search."} />
+        <EmptyState
+          icon={showLapsed ? History : Users}
+          title={showLapsed ? "Nobody's lapsed right now." : customers.length === 0 ? "No customers yet." : "No customers match your search."}
+        />
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => {
@@ -171,8 +209,14 @@ export default function Customers({ customers, jobs, onSave, onDelete, draft, on
                     <div className="text-xs text-slate-500 mt-0.5 truncate">{c.address || "No address on file"}</div>
                   </div>
                   <div className="hidden sm:block text-right shrink-0">
-                    <div className="text-xs text-slate-400">{c.frequency_weeks ? `Every ${c.frequency_weeks}w` : "One-off"}</div>
-                    <div className="text-xs text-slate-500">{due ? `Next due ${formatDate(due)}` : jobCountByCustomer.get(c.id) ? `${jobCountByCustomer.get(c.id)} jobs` : "No jobs yet"}</div>
+                    {showLapsed ? (
+                      <div className="text-xs text-amber-600">Last clean {formatDate(c.last_service_date)}</div>
+                    ) : (
+                      <>
+                        <div className="text-xs text-slate-400">{c.frequency_weeks ? `Every ${c.frequency_weeks}w` : "One-off"}</div>
+                        <div className="text-xs text-slate-500">{due ? `Next due ${formatDate(due)}` : jobCountByCustomer.get(c.id) ? `${jobCountByCustomer.get(c.id)} jobs` : "No jobs yet"}</div>
+                      </>
+                    )}
                   </div>
                 </button>
               </Card>

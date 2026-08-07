@@ -239,10 +239,21 @@ export async function deleteRenewal(id) {
 // ---------------------------------------------------------------------------
 // Settings (single row: home base + mileage rate)
 // ---------------------------------------------------------------------------
+const DEFAULT_CHECKLIST = ["Squeegees", "Extension pole", "Towels / cloths", "Screwdriver", "Bucket & soap"];
+
 export async function fetchSettings() {
   const { data, error } = await supabase.from("settings").select("*").eq("id", true).maybeSingle();
   if (error) throw error;
-  return data || { id: true, home_base_address: null, home_base_lat: null, home_base_lng: null, mileage_rate_cents: 88 };
+  return (
+    data || {
+      id: true,
+      home_base_address: null,
+      home_base_lat: null,
+      home_base_lng: null,
+      mileage_rate_cents: 88,
+      packing_checklist: DEFAULT_CHECKLIST,
+    }
+  );
 }
 
 export async function saveSettings(settings) {
