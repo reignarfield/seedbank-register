@@ -48,6 +48,9 @@ export default function PublicSite() {
 
         <div className="text-center mt-8">
           <div className="text-xs text-slate-300">Tydie Cleaning · ABN 55 202 207 046</div>
+          <a href="/team" className="text-xs text-slate-300 hover:text-slate-400 underline underline-offset-2">
+            Staff sign in
+          </a>
         </div>
       </div>
     </div>

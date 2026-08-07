@@ -35,7 +35,6 @@ import {
   saveCustomerCoords,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
-import LoginModal from "./components/LoginModal";
 import Dashboard from "./components/Dashboard";
 import Customers from "./components/Customers";
 import Schedule from "./components/Schedule";
@@ -64,7 +63,6 @@ function emptyCustomerDraft(overrides = {}) {
 export default function App() {
   const [view, setView] = useState("dashboard");
   const [session, setSession] = useState(null);
-  const [showLogin, setShowLogin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [recovering, setRecovering] = useState(false);
@@ -325,7 +323,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <NavBar view={view} setView={setView} session={session} onLoginClick={() => setShowLogin(true)} onLogout={handleLogout} leadBadge={newLeadCount} />
+      <NavBar view={view} setView={setView} onLogout={handleLogout} leadBadge={newLeadCount} />
       {error && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
           <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
@@ -419,8 +417,6 @@ export default function App() {
       {view === "customerpage" && <CustomerPage />}
 
       {view === "dev" && <Dev />}
-
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onSignedIn={() => setShowLogin(false)} />}
     </div>
   );
 }

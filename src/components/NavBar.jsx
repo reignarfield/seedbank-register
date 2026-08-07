@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Globe, Wrench, LogIn, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Globe, Wrench, LogOut } from "lucide-react";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -12,7 +12,7 @@ const TABS = [
   { id: "dev", label: "Dev", icon: Wrench },
 ];
 
-export default function NavBar({ view, setView, session, onLoginClick, onLogout, leadBadge }) {
+export default function NavBar({ view, setView, onLogout, leadBadge }) {
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -50,25 +50,14 @@ export default function NavBar({ view, setView, session, onLoginClick, onLogout,
                 );
               })}
             </div>
-            {session ? (
-              <button
-                onClick={onLogout}
-                title="Sign out"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
-              >
-                <LogOut size={14} strokeWidth={2.25} />
-                <span className="hidden sm:inline">Sign out</span>
-              </button>
-            ) : (
-              <button
-                onClick={onLoginClick}
-                title="Sign in"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
-              >
-                <LogIn size={14} strokeWidth={2.25} />
-                <span className="hidden sm:inline">Sign in</span>
-              </button>
-            )}
+            <button
+              onClick={onLogout}
+              title="Sign out"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
+            >
+              <LogOut size={14} strokeWidth={2.25} />
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
           </nav>
         </div>
         <div className="md:hidden flex items-center gap-1 bg-slate-100 rounded-full p-1 mb-3 overflow-x-auto">

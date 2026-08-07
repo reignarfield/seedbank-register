@@ -3,8 +3,7 @@ import { LogIn, Loader2, Mail } from "lucide-react";
 import { signIn, requestPasswordReset } from "../lib/api";
 import { Button, TextInput } from "./ui";
 
-// The actual sign-in/reset-password form, with no opinion on how it's
-// wrapped - LoginModal puts it in a dialog, App renders it directly as the
+// The actual sign-in/reset-password form. App renders it directly as the
 // /team page itself so there's no extra tap to get to it.
 export default function SignInForm({ onSignedIn, onCancel }) {
   const [mode, setMode] = useState("signin"); // "signin" | "reset" | "reset-sent"
