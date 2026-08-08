@@ -35,6 +35,7 @@ import {
   saveCustomerCoords,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
+import TodaySimple from "./components/TodaySimple";
 import Dashboard from "./components/Dashboard";
 import Customers from "./components/Customers";
 import Schedule from "./components/Schedule";
@@ -62,6 +63,7 @@ function emptyCustomerDraft(overrides = {}) {
 
 export default function App() {
   const [view, setView] = useState("dashboard");
+  const [mode, setMode] = useState("simple"); // "simple" (Today, one-tap) | "advanced" (full app)
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -145,6 +147,7 @@ export default function App() {
     setRenewals([]);
     setTrips([]);
     setView("dashboard");
+    setMode("simple");
   };
 
   // ---- Customers ----
@@ -321,9 +324,28 @@ export default function App() {
     );
   }
 
+  if (mode === "simple") {
+    return (
+      <TodaySimple
+        jobs={jobs}
+        customers={customers}
+        checklist={settings.packing_checklist || []}
+        onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
+        onComplete={completeJobAndReload}
+        invoices={invoices}
+        leads={leads}
+        onLogout={handleLogout}
+        onGoAdvanced={(tab) => {
+          setMode("advanced");
+          if (tab) setView(tab);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <NavBar view={view} setView={setView} onLogout={handleLogout} leadBadge={newLeadCount} />
+      <NavBar view={view} setView={setView} onGoSimple={() => setMode("simple")} onLogout={handleLogout} leadBadge={newLeadCount} />
       {error && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
           <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
@@ -341,13 +363,11 @@ export default function App() {
           expenses={expenses}
           renewals={renewals}
           trips={trips}
-          checklist={settings.packing_checklist || []}
           setView={setView}
           onScheduleCustomer={scheduleForCustomer}
           onMarkPaid={markPaid}
           onSaveRenewal={saveRenewal}
           onDeleteRenewal={removeRenewal}
-          onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
         />
       )}
 

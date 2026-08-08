@@ -55,7 +55,7 @@ function JobForm({ initial, customers, onCancel, onSave, saving }) {
 // Shown instead of completing immediately when a job has no price set, so
 // he's asked once at the moment it matters rather than the invoice silently
 // never getting created.
-function CompleteNoPricePrompt({ job, customerName, onCancel, onConfirm }) {
+export function CompleteNoPricePrompt({ job, customerName, onCancel, onConfirm }) {
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
 

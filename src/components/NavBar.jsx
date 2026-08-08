@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Globe, Wrench, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Globe, Wrench, LogOut, Zap } from "lucide-react";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -12,7 +12,7 @@ const TABS = [
   { id: "dev", label: "Dev", icon: Wrench },
 ];
 
-export default function NavBar({ view, setView, onLogout, leadBadge }) {
+export default function NavBar({ view, setView, onGoSimple, onLogout, leadBadge }) {
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -50,6 +50,14 @@ export default function NavBar({ view, setView, onLogout, leadBadge }) {
                 );
               })}
             </div>
+            <button
+              onClick={onGoSimple}
+              title="Back to Today"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
+            >
+              <Zap size={14} strokeWidth={2.25} />
+              <span className="hidden sm:inline">Today</span>
+            </button>
             <button
               onClick={onLogout}
               title="Sign out"
