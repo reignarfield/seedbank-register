@@ -1,17 +1,57 @@
 import React, { useMemo, useState } from "react";
-import { Phone, Navigation, Check, LogOut, ArrowUpRight, CalendarCheck, Receipt, Inbox } from "lucide-react";
+import { Phone, Navigation, Check, LogOut, ArrowUpRight, CalendarCheck, Receipt, Inbox, AlertTriangle } from "lucide-react";
 import { Card, Button, EmptyState } from "./ui";
-import { todayStr } from "../lib/dates";
+import { todayStr, formatDate } from "../lib/dates";
 import MorningCheck from "./MorningCheck";
 import { CompleteNoPricePrompt } from "./Schedule";
 
 const cleanPhone = (p) => (p || "").replace(/[^0-9+]/g, "");
 const mapsLink = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
-// The daily-use screen: today's jobs (call, navigate, mark done), the
-// packing checklist / confirm-tomorrow card, and a couple of tappable
-// counts for anything overdue - everything else lives behind "Full app".
-export default function TodaySimple({ jobs, customers, checklist, onSaveChecklist, onComplete, invoices, leads, onLogout, onGoAdvanced }) {
+function JobRow({ job, customer, overdue, onCall, onComplete }) {
+  return (
+    <Card className={`p-4 ${overdue ? "border-amber-300" : ""}`}>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="font-medium text-slate-900">{customer?.name || "Unknown customer"}</span>
+        {overdue && (
+          <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+            <AlertTriangle size={11} /> {formatDate(job.scheduled_date)}
+          </span>
+        )}
+      </div>
+      <div className="text-sm text-slate-500 mt-0.5">{customer?.address || "No address on file"}</div>
+      <div className="flex items-center gap-2 mt-3">
+        {customer?.phone && (
+          <a
+            href={`tel:${cleanPhone(customer.phone)}`}
+            className="flex items-center justify-center gap-1.5 flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors"
+          >
+            <Phone size={15} /> Call
+          </a>
+        )}
+        {customer?.address && (
+          <a
+            href={mapsLink(customer.address)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-1.5 flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors"
+          >
+            <Navigation size={15} /> Navigate
+          </a>
+        )}
+        <Button className="flex-[1.4] !py-2.5" onClick={onComplete}>
+          <Check size={16} strokeWidth={2.5} /> Mark done
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+// The daily-use screen: today's (and any still-overdue) jobs with call/
+// navigate/mark-done, the packing checklist / confirm-tomorrow card, and a
+// couple of tappable counts for anything else overdue - everything else
+// lives behind "Full app".
+export default function TodaySimple({ jobs, customers, checklist, typeChecklists = {}, onSaveChecklist, onComplete, invoices, leads, onLogout, onGoAdvanced }) {
   const [completingNoPrice, setCompletingNoPrice] = useState(null);
   const today = todayStr();
   const customerById = (id) => customers.find((c) => c.id === id);
@@ -19,6 +59,22 @@ export default function TodaySimple({ jobs, customers, checklist, onSaveChecklis
   const todaysJobs = useMemo(
     () => jobs.filter((j) => j.status === "scheduled" && j.scheduled_date === today),
     [jobs, today]
+  );
+  // Jobs from before today that never got marked done - previously these
+  // only surfaced as "Overdue to complete" in the full Schedule tab, easy
+  // to lose track of since Today never mentioned them.
+  const overdueJobs = useMemo(
+    () => jobs.filter((j) => j.status === "scheduled" && j.scheduled_date < today).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)),
+    [jobs, today]
+  );
+
+  const relevantTypes = useMemo(
+    () => [...new Set([...overdueJobs, ...todaysJobs].map((j) => j.job_type).filter(Boolean))],
+    [overdueJobs, todaysJobs]
+  );
+  const effectiveChecklist = useMemo(
+    () => [...new Set([...checklist, ...relevantTypes.flatMap((t) => typeChecklists[t] || [])])],
+    [checklist, typeChecklists, relevantTypes]
   );
 
   const overdueInvoiceCount = useMemo(
@@ -71,46 +127,33 @@ export default function TodaySimple({ jobs, customers, checklist, onSaveChecklis
           </p>
         </div>
 
-        {todaysJobs.length === 0 ? (
-          <EmptyState icon={CalendarCheck} title="Nothing on today - enjoy it." />
-        ) : (
-          <div className="space-y-2">
-            {todaysJobs.map((j) => {
-              const c = customerById(j.customer_id);
-              return (
-                <Card key={j.id} className="p-4">
-                  <div className="font-medium text-slate-900">{c?.name || "Unknown customer"}</div>
-                  <div className="text-sm text-slate-500 mt-0.5">{c?.address || "No address on file"}</div>
-                  <div className="flex items-center gap-2 mt-3">
-                    {c?.phone && (
-                      <a
-                        href={`tel:${cleanPhone(c.phone)}`}
-                        className="flex items-center justify-center gap-1.5 flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors"
-                      >
-                        <Phone size={15} /> Call
-                      </a>
-                    )}
-                    {c?.address && (
-                      <a
-                        href={mapsLink(c.address)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-center gap-1.5 flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors"
-                      >
-                        <Navigation size={15} /> Navigate
-                      </a>
-                    )}
-                    <Button className="flex-[1.4] !py-2.5" onClick={() => requestComplete(j)}>
-                      <Check size={16} strokeWidth={2.5} /> Mark done
-                    </Button>
-                  </div>
-                </Card>
-              );
-            })}
+        {overdueJobs.length > 0 && (
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-600 mb-2">
+              Overdue - not marked done
+            </div>
+            <div className="space-y-2">
+              {overdueJobs.map((j) => (
+                <JobRow key={j.id} job={j} customer={customerById(j.customer_id)} overdue onComplete={() => requestComplete(j)} />
+              ))}
+            </div>
           </div>
         )}
 
-        <MorningCheck jobs={jobs} customers={customers} checklist={checklist} onSaveChecklist={onSaveChecklist} />
+        {todaysJobs.length === 0 && overdueJobs.length === 0 ? (
+          <EmptyState icon={CalendarCheck} title="Nothing on today - enjoy it." />
+        ) : todaysJobs.length > 0 ? (
+          <div>
+            {overdueJobs.length > 0 && <div className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 mb-2">Today</div>}
+            <div className="space-y-2">
+              {todaysJobs.map((j) => (
+                <JobRow key={j.id} job={j} customer={customerById(j.customer_id)} onComplete={() => requestComplete(j)} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <MorningCheck jobs={jobs} customers={customers} checklist={effectiveChecklist} baseChecklist={checklist} onSaveChecklist={onSaveChecklist} />
 
         {(overdueInvoiceCount > 0 || newLeadCount > 0) && (
           <div className="space-y-2">

@@ -6,6 +6,7 @@ import { Card, EmptyState } from "./ui";
 // rather than timestamped as they shipped; add a date once entries are
 // logged as they happen.
 const CHANGELOG = [
+  { title: "Per-job-type kit checklists + overdue jobs on Today", detail: "Scheduling a job can now tag it with a type (window cleaning, pressure cleaning, solar, cars, etc, with a rough price guide once picked). Today's checklist automatically adds that type's extra kit on top of the everyday list - set up once via \"Kit lists\" on the Dashboard. Today also now surfaces any job from a previous day that never got marked done, not just today's jobs, so nothing gets forgotten." },
   { title: "Simple/Advanced split", detail: "Signing in now lands on a bare-bones \"Today\" screen - today's jobs with call/navigate/mark-done, the packing checklist, tomorrow's confirmations, and a nudge only if something's overdue. The full app (Customers, Schedule, Billing, Mileage, Leads) is one tap away behind \"Full app\", for sit-down admin sessions." },
   { title: "One-tap sign in for /team", detail: "Signing in is now the page itself instead of a button behind a tap - go to /team and the form's already there. The public booking site is unaffected and stays the default for everyone else." },
   { title: "Reach out to lapsed customers", detail: "Customers tab has a \"Reach out again\" filter for active, one-off customers not serviced in 6+ months - the ones the recurring due-date system doesn't catch, straight from Tyson's feedback." },

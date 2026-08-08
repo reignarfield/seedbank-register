@@ -2,9 +2,24 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Plus, CalendarDays, Loader2, X, Check, Ban, Trash2, AlertTriangle } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
 import { formatDate, todayStr, nextDueDate } from "../lib/dates";
+import { PRICE_GROUPS } from "../lib/pricing";
 
 function emptyJob(customerId = "", date = todayStr()) {
-  return { customer_id: customerId, scheduled_date: date, price: "", notes: "", status: "scheduled" };
+  return { customer_id: customerId, scheduled_date: date, job_type: "", price: "", notes: "", status: "scheduled" };
+}
+
+// A rough "what does this usually cost" note next to the price field once a
+// job type is picked - a reference only, not an autofill, since the real
+// price still varies per property. Only plain "$123" style prices count
+// toward the range; "Quote required" / per-m² items are skipped rather than
+// producing a misleading guide.
+function priceGuide(jobType) {
+  const group = PRICE_GROUPS.find((g) => g.title === jobType);
+  if (!group) return null;
+  const nums = group.items.map((i) => i.price).filter((p) => /^\$[\d,]+$/.test(p)).map((p) => Number(p.replace(/[$,]/g, "")));
+  if (nums.length === 0) return null;
+  const min = Math.min(...nums), max = Math.max(...nums);
+  return min === max ? `Guide: $${min}` : `Guide: $${min} - $${max}`;
 }
 
 function JobForm({ initial, customers, onCancel, onSave, saving }) {
@@ -33,8 +48,17 @@ function JobForm({ initial, customers, onCancel, onSave, saving }) {
           <Field label="Date" required>
             <TextInput type="date" value={form.scheduled_date} onChange={(e) => set("scheduled_date", e.target.value)} />
           </Field>
+          <Field label="Job type">
+            <Select value={form.job_type || ""} onChange={(e) => set("job_type", e.target.value)}>
+              <option value="">— general —</option>
+              {PRICE_GROUPS.map((g) => (
+                <option key={g.title} value={g.title}>{g.title}</option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Price">
             <TextInput type="number" step="0.01" inputMode="decimal" value={form.price ?? ""} onChange={(e) => set("price", e.target.value)} placeholder="0.00" />
+            {priceGuide(form.job_type) && <p className="text-xs text-slate-400 mt-1">{priceGuide(form.job_type)}</p>}
           </Field>
           <Field label="Notes">
             <TextArea rows={2} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} placeholder="Anything the job needs" />
@@ -133,7 +157,7 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
   const save = async (form) => {
     setSaving(true);
     try {
-      const payload = { ...form, price: form.price === "" ? null : Number(form.price) };
+      const payload = { ...form, job_type: form.job_type || null, price: form.price === "" ? null : Number(form.price) };
       await onSave(payload);
       setEditing(null);
     } finally {
@@ -198,6 +222,7 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <span className="font-medium text-slate-900 truncate">{c?.name || "Unknown customer"}</span>
                       <StatusPill status={j.status} />
+                      {j.job_type && <span className="text-xs text-slate-400 border border-slate-200 rounded-full px-2 py-0.5">{j.job_type}</span>}
                       {isPast && <span className="text-xs text-amber-600 font-medium">Overdue to complete</span>}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5 truncate">{c?.address || ""}</div>

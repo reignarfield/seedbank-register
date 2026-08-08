@@ -83,6 +83,7 @@ export default function App() {
     home_base_lng: null,
     mileage_rate_cents: 88,
     packing_checklist: ["Squeegees", "Extension pole", "Towels / cloths", "Screwdriver", "Bucket & soap"],
+    type_checklists: {},
   });
 
   // Cross-module "hand off" drafts: e.g. accepting a quote should be able to
@@ -330,6 +331,7 @@ export default function App() {
         jobs={jobs}
         customers={customers}
         checklist={settings.packing_checklist || []}
+        typeChecklists={settings.type_checklists || {}}
         onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
         onComplete={completeJobAndReload}
         invoices={invoices}
@@ -368,6 +370,8 @@ export default function App() {
           onMarkPaid={markPaid}
           onSaveRenewal={saveRenewal}
           onDeleteRenewal={removeRenewal}
+          typeChecklists={settings.type_checklists || {}}
+          onSaveTypeChecklist={(type, items) => saveMileageSettings({ type_checklists: { ...settings.type_checklists, [type]: items } })}
         />
       )}
 
