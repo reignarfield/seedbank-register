@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
+import { todayStr } from "./lib/dates";
 import {
   getSession,
   onAuthChange,
@@ -33,6 +34,10 @@ import {
   upsertTrip,
   deleteTrip,
   saveCustomerCoords,
+  logAutoTrip,
+  logHeadingHome,
+  fetchCustomerNotes,
+  addCustomerNote,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
 import TodaySimple from "./components/TodaySimple";
@@ -61,6 +66,23 @@ function emptyCustomerDraft(overrides = {}) {
   return { name: "", phone: "", email: "", address: "", notes: "", access_notes: "", frequency_weeks: "", last_service_date: "", status: "active", ...overrides };
 }
 
+// Where he actually last was, for chaining today's mileage legs: the
+// destination of today's most recently logged trip, or home base if
+// nothing's been logged yet today. A trip with no customer_id (the
+// "Heading home" leg) means he was last at home.
+function currentPosition(trips, customers, settings) {
+  const today = todayStr();
+  const todaysTrips = trips.filter((t) => t.trip_date === today);
+  const last = todaysTrips.length
+    ? todaysTrips.reduce((a, b) => ((a.created_at || "") > (b.created_at || "") ? a : b))
+    : null;
+  if (!last || !last.customer_id) {
+    return { label: settings.home_base_address, lat: settings.home_base_lat, lng: settings.home_base_lng };
+  }
+  const c = customers.find((x) => x.id === last.customer_id);
+  return { label: last.to_label, lat: c?.lat, lng: c?.lng };
+}
+
 export default function App() {
   const [view, setView] = useState("dashboard");
   const [mode, setMode] = useState("simple"); // "simple" (Today, one-tap) | "advanced" (full app)
@@ -77,6 +99,7 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [renewals, setRenewals] = useState([]);
   const [trips, setTrips] = useState([]);
+  const [customerNotes, setCustomerNotes] = useState([]);
   const [settings, setSettings] = useState({
     home_base_address: null,
     home_base_lat: null,
@@ -96,7 +119,7 @@ export default function App() {
   const reload = async () => {
     setError("");
     try {
-      const [c, j, q, i, l, ex, re, tr, st] = await Promise.all([
+      const [c, j, q, i, l, ex, re, tr, st, cn] = await Promise.all([
         fetchCustomers(),
         fetchJobs(),
         fetchQuotes(),
@@ -106,6 +129,7 @@ export default function App() {
         fetchRenewals(),
         fetchTrips(),
         fetchSettings(),
+        fetchCustomerNotes(),
       ]);
       setCustomers(c);
       setJobs(j);
@@ -116,6 +140,7 @@ export default function App() {
       setRenewals(re);
       setTrips(tr);
       setSettings(st);
+      setCustomerNotes(cn);
     } catch (e) {
       setError("Could not load data: " + (e?.message || "unknown error"));
     }
@@ -147,6 +172,7 @@ export default function App() {
     setExpenses([]);
     setRenewals([]);
     setTrips([]);
+    setCustomerNotes([]);
     setView("dashboard");
     setMode("simple");
   };
@@ -166,8 +192,19 @@ export default function App() {
     await upsertJob(j);
     await reload();
   };
-  const completeJobAndReload = async (j) => {
-    await completeJob(j);
+  const completeJobAndReload = async (j, paidNow) => {
+    const pos = currentPosition(trips, customers, settings);
+    await completeJob(j, { paidNow });
+    const customer = customers.find((c) => c.id === j.customer_id);
+    if (customer) logAutoTrip(pos, customer, j.job_type).catch(() => {});
+    await reload();
+  };
+  // "I'm heading home now" - closes a loop by logging the final leg back to
+  // base, so the next job completed (even much later, a second loop) starts
+  // fresh from home instead of chaining off wherever the last job was.
+  const headingHome = async () => {
+    const pos = currentPosition(trips, customers, settings);
+    await logHeadingHome(pos, { label: settings.home_base_address, lat: settings.home_base_lat, lng: settings.home_base_lng }).catch(() => {});
     await reload();
   };
   const cancelJob = async (j) => {
@@ -240,6 +277,12 @@ export default function App() {
   const cacheCustomerCoords = (id, lat, lng) => {
     setCustomers((prev) => prev.map((c) => (c.id === id ? { ...c, lat, lng } : c)));
     saveCustomerCoords(id, lat, lng).catch(() => {});
+  };
+
+  // ---- Customer notes ----
+  const addNote = async (customerId, note) => {
+    await addCustomerNote(customerId, note);
+    await reload();
   };
 
   // ---- Leads ----
@@ -334,6 +377,12 @@ export default function App() {
         typeChecklists={settings.type_checklists || {}}
         onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
         onComplete={completeJobAndReload}
+        onSaveJob={saveJob}
+        onReschedule={(job, date) => saveJob({ ...job, scheduled_date: date })}
+        onCancelJob={cancelJob}
+        onHeadingHome={headingHome}
+        hasLoggedTripToday={trips.some((t) => t.trip_date === todayStr())}
+        onAddNote={addNote}
         invoices={invoices}
         leads={leads}
         onLogout={handleLogout}
@@ -379,6 +428,7 @@ export default function App() {
         <Customers
           customers={customers}
           jobs={jobs}
+          customerNotes={customerNotes}
           onSave={saveCustomer}
           onDelete={removeCustomer}
           draft={customerDraft}

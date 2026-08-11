@@ -22,7 +22,7 @@ function priceGuide(jobType) {
   return min === max ? `Guide: $${min}` : `Guide: $${min} - $${max}`;
 }
 
-function JobForm({ initial, customers, onCancel, onSave, saving }) {
+export function JobForm({ initial, customers, onCancel, onSave, saving }) {
   const [form, setForm] = useState(initial);
   useEffect(() => setForm(initial), [initial]);
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));

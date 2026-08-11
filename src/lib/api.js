@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { todayStr, addDays } from "./dates";
+import { geocode, drivingDistanceKm } from "./geo";
 
 // ---------------------------------------------------------------------------
 // Auth
@@ -83,7 +84,7 @@ export async function deleteJob(id) {
 // recurring due-dates stay accurate without a separate "generate next job" step.
 // If the job has a price, an invoice is raised automatically so completing a
 // job is the only manual step - no separate "now go invoice it" chore.
-export async function completeJob(job) {
+export async function completeJob(job, { paidNow } = {}) {
   const jobUpdates = { status: "completed", completed_at: new Date().toISOString() };
   // A price supplied at completion time (e.g. via the "what's this worth?"
   // prompt when the job was booked with no price) is persisted onto the job
@@ -111,11 +112,57 @@ export async function completeJob(job) {
       description: `Window clean — ${job.scheduled_date}`,
       amount: Number(job.price),
       due_date: addDays(todayStr(), 14),
+      // Paid on the spot (cash/card at completion) skips the separate
+      // "go mark it paid later" trip into Billing.
+      status: paidNow ? "paid" : "unpaid",
+      paid_date: paidNow ? todayStr() : null,
     });
     if (invError) throw invError;
   }
 
   return updatedJob;
+}
+
+// Best-effort: log one leg of today's route (wherever he actually last was
+// -> this job's customer), reusing cached customer coordinates when
+// available and geocoding once otherwise. Silently does nothing if either
+// end can't be located - never blocks job completion.
+export async function logAutoTrip(fromPos, customer, purpose) {
+  if (!customer?.address || fromPos?.lat == null || fromPos?.lng == null) return;
+  let toCoords = customer.lat != null && customer.lng != null ? { lat: customer.lat, lng: customer.lng } : await geocode(customer.address);
+  if (!toCoords) return;
+  if (customer.lat == null || customer.lng == null) {
+    saveCustomerCoords(customer.id, toCoords.lat, toCoords.lng).catch(() => {});
+  }
+  const distance_km = await drivingDistanceKm({ lat: fromPos.lat, lng: fromPos.lng }, toCoords);
+  if (distance_km == null) return;
+  await upsertTrip({
+    trip_date: todayStr(),
+    from_label: fromPos.label || "Previous stop",
+    to_label: `${customer.name}${customer.address ? " — " + customer.address : ""}`,
+    distance_km,
+    round_trip: false,
+    purpose: purpose || "Job",
+    customer_id: customer.id,
+  });
+}
+
+// Best-effort: log the final leg of a loop back to home base, and hand back
+// whether it actually logged anything (both ends need coordinates).
+export async function logHeadingHome(fromPos, homeBase) {
+  if (fromPos?.lat == null || homeBase?.lat == null || homeBase?.lng == null) return false;
+  const distance_km = await drivingDistanceKm({ lat: fromPos.lat, lng: fromPos.lng }, { lat: homeBase.lat, lng: homeBase.lng });
+  if (distance_km == null) return false;
+  await upsertTrip({
+    trip_date: todayStr(),
+    from_label: fromPos.label || "Last stop",
+    to_label: homeBase.label || "Home",
+    distance_km,
+    round_trip: false,
+    purpose: "Heading home",
+    customer_id: null,
+  });
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,4 +334,20 @@ export async function deleteTrip(id) {
 export async function saveCustomerCoords(id, lat, lng) {
   const { error } = await supabase.from("customers").update({ lat, lng }).eq("id", id);
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Customer notes - a fast running log of on-site jottings, separate from the
+// permanent notes/access_notes fields customers edits deliberately.
+// ---------------------------------------------------------------------------
+export async function fetchCustomerNotes() {
+  const { data, error } = await supabase.from("customer_notes").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addCustomerNote(customerId, note) {
+  const { data, error } = await supabase.from("customer_notes").insert({ customer_id: customerId, note }).select().single();
+  if (error) throw error;
+  return data;
 }

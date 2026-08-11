@@ -22,7 +22,7 @@ function emptyCustomer() {
   return { name: "", phone: "", email: "", address: "", notes: "", access_notes: "", frequency_weeks: "", last_service_date: "", status: "active" };
 }
 
-function CustomerForm({ initial, onCancel, onSave, onDelete, saving }) {
+function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
   const [form, setForm] = useState(initial);
   useEffect(() => setForm(initial), [initial]);
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -76,6 +76,18 @@ function CustomerForm({ initial, onCancel, onSave, onDelete, saving }) {
           <Field label="Notes">
             <TextArea rows={2} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} placeholder="Anything else worth remembering" />
           </Field>
+          {isEdit && notes && notes.length > 0 && (
+            <Field label="Recent notes">
+              <div className="space-y-1.5 max-h-40 overflow-y-auto border border-slate-100 rounded-lg p-2.5">
+                {notes.map((n) => (
+                  <div key={n.id} className="text-xs">
+                    <span className="text-slate-400">{formatDate(n.created_at.slice(0, 10))} — </span>
+                    <span className="text-slate-600">{n.note}</span>
+                  </div>
+                ))}
+              </div>
+            </Field>
+          )}
         </div>
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
           {isEdit && onDelete && (
@@ -94,7 +106,7 @@ function CustomerForm({ initial, onCancel, onSave, onDelete, saving }) {
   );
 }
 
-export default function Customers({ customers, jobs, onSave, onDelete, draft, onDraftConsumed }) {
+export default function Customers({ customers, jobs, customerNotes = [], onSave, onDelete, draft, onDraftConsumed }) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -225,7 +237,16 @@ export default function Customers({ customers, jobs, onSave, onDelete, draft, on
         </div>
       )}
 
-      {editing && <CustomerForm initial={editing} onCancel={() => setEditing(null)} onSave={save} onDelete={remove} saving={saving} />}
+      {editing && (
+        <CustomerForm
+          initial={editing}
+          notes={editing.id ? customerNotes.filter((n) => n.customer_id === editing.id).slice(0, 8) : []}
+          onCancel={() => setEditing(null)}
+          onSave={save}
+          onDelete={remove}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }
