@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Phone,
   Navigation,
@@ -18,9 +18,13 @@ import {
   Plus,
   Home,
   Search,
+  CloudRain,
+  MapPin,
+  PartyPopper,
 } from "lucide-react";
-import { Card, Button, EmptyState, TextInput, TextArea } from "./ui";
+import { Card, Button, EmptyState, TextInput, TextArea, money } from "./ui";
 import { todayStr, addDays, formatDate } from "../lib/dates";
+import { fetchRainChance } from "../lib/weather";
 import MorningCheck from "./MorningCheck";
 import { CompleteNoPricePrompt, JobForm } from "./Schedule";
 
@@ -64,6 +68,29 @@ function RescheduleMenu({ job, onClose, onReschedule, onCancelJob }) {
         )}
       </div>
     </div>
+  );
+}
+
+// A one-tap "I'm on" moment before the normal screen underneath - not a
+// gate, everything below is already visible, this is the ritual of
+// explicitly starting rather than the app just always being on.
+function StartDayCard({ homeBaseAddress, rainChance, onStart }) {
+  return (
+    <Card className="p-5 border-blue-200 bg-blue-50/50">
+      <h2 className="font-semibold text-lg text-slate-900 mb-1">Ready to start your day?</h2>
+      <p className="text-sm text-slate-600 mb-3">Here's today's route and kit below - have a look, then start when you're ready.</p>
+      <div className="space-y-1.5 mb-4">
+        {rainChance != null && (
+          <p className="text-xs text-slate-500 flex items-center gap-1.5">
+            <CloudRain size={13} /> {rainChance >= 40 ? `Rain likely today (${rainChance}%)` : `Rain unlikely today (${rainChance}%)`}
+          </p>
+        )}
+        <p className="text-xs text-slate-500 flex items-center gap-1.5">
+          <MapPin size={13} /> Starting from: {homeBaseAddress || "home base (not set)"}
+        </p>
+      </div>
+      <Button className="w-full" onClick={onStart}>Start my day</Button>
+    </Card>
   );
 }
 
@@ -221,7 +248,13 @@ export default function TodaySimple({
   onCancelJob,
   onHeadingHome,
   hasLoggedTripToday,
+  todayTripKm = 0,
   onAddNote,
+  homeBaseAddress,
+  homeBaseLat,
+  homeBaseLng,
+  dayStartedToday,
+  onStartDay,
   invoices,
   leads,
   onLogout,
@@ -232,8 +265,16 @@ export default function TodaySimple({
   const [addingJob, setAddingJob] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
   const [addingNote, setAddingNote] = useState(false);
+  const [rainChance, setRainChance] = useState(null);
+  const [weatherDismissed, setWeatherDismissed] = useState(false);
   const today = todayStr();
   const customerById = (id) => customers.find((c) => c.id === id);
+
+  useEffect(() => {
+    if (homeBaseLat != null && homeBaseLng != null) {
+      fetchRainChance(homeBaseLat, homeBaseLng).then(setRainChance);
+    }
+  }, [homeBaseLat, homeBaseLng]);
 
   const todaysJobsRaw = useMemo(
     () => jobs.filter((j) => j.status === "scheduled" && j.scheduled_date === today),
@@ -281,6 +322,14 @@ export default function TodaySimple({
   const newLeadCount = useMemo(() => leads.filter((l) => l.status === "new").length, [leads]);
 
   const priorityIds = useMemo(() => new Set([...overdueJobs, ...todaysJobs].map((j) => j.customer_id)), [overdueJobs, todaysJobs]);
+
+  // What actually got done today, regardless of which day it was originally
+  // scheduled for - an overdue job finished today still counts as today's work.
+  const completedTodayJobs = useMemo(
+    () => jobs.filter((j) => j.status === "completed" && (j.completed_at || "").slice(0, 10) === today),
+    [jobs, today]
+  );
+  const completedTodayTotal = useMemo(() => completedTodayJobs.reduce((s, j) => s + Number(j.price || 0), 0), [completedTodayJobs]);
 
   const hasPrice = (j) => j.price != null && Number(j.price) > 0;
   const requestComplete = (j, paidNow) => (hasPrice(j) ? onComplete(j, paidNow) : setCompletingNoPrice(j));
@@ -336,6 +385,21 @@ export default function TodaySimple({
           </p>
         </div>
 
+        {!dayStartedToday && (
+          <StartDayCard homeBaseAddress={homeBaseAddress} rainChance={rainChance} onStart={onStartDay} />
+        )}
+
+        {dayStartedToday && rainChance != null && rainChance >= 40 && !weatherDismissed && (
+          <div className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-sm">
+            <span className="flex items-center gap-2">
+              <CloudRain size={15} /> Rain likely today ({rainChance}%) - some jobs might need moving.
+            </span>
+            <button onClick={() => setWeatherDismissed(true)} className="text-amber-600 hover:text-amber-800 shrink-0">
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <Button variant="secondary" className="flex-1" onClick={() => setAddingNote(true)}>
             <StickyNote size={15} /> Add note
@@ -366,7 +430,18 @@ export default function TodaySimple({
         )}
 
         {todaysJobs.length === 0 && overdueJobs.length === 0 ? (
-          <EmptyState icon={CalendarCheck} title="Nothing on today - enjoy it." />
+          completedTodayJobs.length > 0 ? (
+            <Card className="p-5 text-center border-emerald-200 bg-emerald-50/50">
+              <PartyPopper size={22} className="mx-auto text-emerald-600 mb-2" />
+              <div className="text-base font-semibold text-slate-900">All done for today</div>
+              <div className="text-sm text-slate-600 mt-1">
+                {completedTodayJobs.length} job{completedTodayJobs.length === 1 ? "" : "s"} · {money(completedTodayTotal)} earned
+                {todayTripKm > 0 && ` · ${todayTripKm.toFixed(todayTripKm % 1 === 0 ? 0 : 1)} km driven`}
+              </div>
+            </Card>
+          ) : (
+            <EmptyState icon={CalendarCheck} title="Nothing on today - enjoy it." />
+          )
         ) : todaysJobs.length > 0 ? (
           <div>
             {overdueJobs.length > 0 && <div className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 mb-2">Today</div>}

@@ -107,11 +107,13 @@ export default function App() {
     mileage_rate_cents: 88,
     packing_checklist: ["Squeegees", "Extension pole", "Towels / cloths", "Screwdriver", "Bucket & soap"],
     type_checklists: {},
+    day_started_date: null,
   });
 
   // Cross-module "hand off" drafts: e.g. accepting a quote should be able to
   // drop straight into scheduling that customer's first job.
   const [scheduleDraftCustomer, setScheduleDraftCustomer] = useState(null);
+  const [scheduleDraftQuote, setScheduleDraftQuote] = useState(null);
   const [customerDraft, setCustomerDraft] = useState(null);
   const [quoteDraft, setQuoteDraft] = useState(null);
   const [invoiceDraft, setInvoiceDraft] = useState(null);
@@ -306,8 +308,12 @@ export default function App() {
   };
 
   // ---- Cross-module handoffs ----
-  const scheduleForCustomer = (customer) => {
+  // A quote passed in here (accepting a quote) pre-fills the resulting
+  // job's price/description straight from what was actually quoted, so
+  // there's nothing to remember or re-enter before the invoice raises.
+  const scheduleForCustomer = (customer, quote) => {
     setScheduleDraftCustomer(customer);
+    setScheduleDraftQuote(quote || null);
     setView("schedule");
   };
 
@@ -330,7 +336,7 @@ export default function App() {
       if (lead) await setLeadStatus(lead, "won");
     }
     await reload();
-    scheduleForCustomer(customer);
+    scheduleForCustomer(customer, quote);
   };
 
   const newLeadCount = leads.filter((l) => l.status === "new").length;
@@ -382,7 +388,13 @@ export default function App() {
         onCancelJob={cancelJob}
         onHeadingHome={headingHome}
         hasLoggedTripToday={trips.some((t) => t.trip_date === todayStr())}
+        todayTripKm={trips.filter((t) => t.trip_date === todayStr()).reduce((s, t) => s + Number(t.distance_km || 0), 0)}
         onAddNote={addNote}
+        homeBaseAddress={settings.home_base_address}
+        homeBaseLat={settings.home_base_lat}
+        homeBaseLng={settings.home_base_lng}
+        dayStartedToday={settings.day_started_date === todayStr()}
+        onStartDay={() => saveMileageSettings({ day_started_date: todayStr() })}
         invoices={invoices}
         leads={leads}
         onLogout={handleLogout}
@@ -445,7 +457,11 @@ export default function App() {
           onCancelJob={cancelJob}
           onDelete={removeJob}
           draftCustomer={scheduleDraftCustomer}
-          onDraftConsumed={() => setScheduleDraftCustomer(null)}
+          draftQuote={scheduleDraftQuote}
+          onDraftConsumed={() => {
+            setScheduleDraftCustomer(null);
+            setScheduleDraftQuote(null);
+          }}
         />
       )}
 

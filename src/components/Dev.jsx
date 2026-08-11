@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Sparkles, FolderKanban } from "lucide-react";
 import { Card, EmptyState } from "./ui";
+import DayInTheLife from "./DayInTheLife";
 
 // Newest first. No dates on purpose - these were written up after the fact
 // rather than timestamped as they shipped; add a date once entries are
 // logged as they happen.
 const CHANGELOG = [
+  { title: "Quote carry-through, weather, day start/end, and a Journey tab", detail: "Scheduling a job from an accepted quote now carries the price and description straight across, so the invoice matches what was actually quoted with nothing to remember. Today shows a rain heads-up (free forecast, no key) and a one-tap \"Start my day\"/end-of-day recap bookending the day itself, not just the jobs. Also added a Journey tab here in Dev - a written walkthrough of a realistic day, kept honest about the gaps it still finds." },
   { title: "Reschedule, quick add, chained mileage, notes, paid-on-spot", detail: "\"Can't do it today\" reschedules or cancels a job in one tap instead of leaving it to quietly go overdue. \"New job\" and \"Add note\" (pick a customer, jot it down) are now right on Today. Completing jobs auto-logs real mileage legs (home → job → job → home, not a round trip per job) with a \"Heading home\" button for closing a loop - and today's jobs can be manually reordered to match his actual route. A \"Paid on the spot\" tick at completion skips a separate trip into Billing." },
   { title: "Per-job-type kit checklists + overdue jobs on Today", detail: "Scheduling a job can now tag it with a type (window cleaning, pressure cleaning, solar, cars, etc, with a rough price guide once picked). Today's checklist automatically adds that type's extra kit on top of the everyday list - set up once via \"Kit lists\" on the Dashboard. Today also now surfaces any job from a previous day that never got marked done, not just today's jobs, so nothing gets forgotten." },
   { title: "Simple/Advanced split", detail: "Signing in now lands on a bare-bones \"Today\" screen - today's jobs with call/navigate/mark-done, the packing checklist, tomorrow's confirmations, and a nudge only if something's overdue. The full app (Customers, Schedule, Billing, Mileage, Leads) is one tap away behind \"Full app\", for sit-down admin sessions." },
@@ -53,6 +55,12 @@ export default function Dev() {
           Changelog
         </button>
         <button
+          onClick={() => setTab("journey")}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${tab === "journey" ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
+        >
+          Journey
+        </button>
+        <button
           onClick={() => setTab("projects")}
           className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${tab === "projects" ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
         >
@@ -60,7 +68,7 @@ export default function Dev() {
         </button>
       </div>
 
-      {tab === "changelog" ? (
+      {tab === "changelog" && (
         <div className="space-y-2">
           {CHANGELOG.map((entry, i) => (
             <Card key={i} className="px-4 py-3 flex items-start gap-3">
@@ -72,7 +80,11 @@ export default function Dev() {
             </Card>
           ))}
         </div>
-      ) : (
+      )}
+
+      {tab === "journey" && <DayInTheLife />}
+
+      {tab === "projects" && (
         <EmptyState
           icon={FolderKanban}
           title="Nothing here yet."

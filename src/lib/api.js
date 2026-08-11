@@ -109,7 +109,10 @@ export async function completeJob(job, { paidNow } = {}) {
     const { error: invError } = await supabase.from("invoices").insert({
       customer_id: job.customer_id,
       job_id: job.id,
-      description: `Window clean — ${job.scheduled_date}`,
+      // A job scheduled straight from an accepted quote carries the quote's
+      // description onto job.notes, so the invoice says what was actually
+      // quoted instead of a generic line.
+      description: job.notes || `Window clean — ${job.scheduled_date}`,
       amount: Number(job.price),
       due_date: addDays(todayStr(), 14),
       // Paid on the spot (cash/card at completion) skips the separate

@@ -181,7 +181,7 @@ export default function Quotes({ quotes, customers, onSave, onDelete, onSchedule
                       </>
                     )}
                     {q.status === "accepted" && c && (
-                      <button title="Schedule job" onClick={() => onScheduleFromQuote(c)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50">
+                      <button title="Schedule job" onClick={() => onScheduleFromQuote(c, q)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50">
                         <CalendarPlus size={15} />
                       </button>
                     )}

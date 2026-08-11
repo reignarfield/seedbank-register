@@ -4,8 +4,19 @@ import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyStat
 import { formatDate, todayStr, nextDueDate } from "../lib/dates";
 import { PRICE_GROUPS } from "../lib/pricing";
 
-function emptyJob(customerId = "", date = todayStr()) {
-  return { customer_id: customerId, scheduled_date: date, job_type: "", price: "", notes: "", status: "scheduled" };
+// A quote here (scheduling straight off an accepted quote) pre-fills price
+// and description from what was actually quoted - still fully editable in
+// the form, just a sane starting point instead of a blank one to remember.
+function emptyJob(customerId = "", date = todayStr(), quote = null) {
+  return {
+    customer_id: customerId,
+    scheduled_date: date,
+    job_type: "",
+    price: quote?.amount ?? "",
+    notes: quote?.description || "",
+    status: "scheduled",
+    quote_id: quote?.id || null,
+  };
 }
 
 // A rough "what does this usually cost" note next to the price field once a
@@ -128,7 +139,7 @@ export function CompleteNoPricePrompt({ job, customerName, onCancel, onConfirm }
   );
 }
 
-export default function Schedule({ customers, jobs, onSave, onComplete, onCancelJob, onDelete, draftCustomer, onDraftConsumed }) {
+export default function Schedule({ customers, jobs, onSave, onComplete, onCancelJob, onDelete, draftCustomer, draftQuote, onDraftConsumed }) {
   const [filter, setFilter] = useState("upcoming");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -137,7 +148,7 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
   useEffect(() => {
     if (draftCustomer) {
       const due = nextDueDate(draftCustomer) || todayStr();
-      setEditing(emptyJob(draftCustomer.id, due));
+      setEditing(emptyJob(draftCustomer.id, due, draftQuote));
       onDraftConsumed();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
