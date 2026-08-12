@@ -113,11 +113,12 @@ function JobRow({ job, customer, overdue, onComplete, onReschedule, order }) {
           <div className="text-sm text-slate-500 mt-0.5">{customer?.address || "No address on file"}</div>
         </div>
         {order && (
-          <div className="flex flex-col shrink-0 -mr-1 -mt-1">
-            <button onClick={order.onUp} disabled={!order.canUp} className="p-1 text-slate-300 hover:text-slate-600 disabled:opacity-30 disabled:hover:text-slate-300">
+          <div className="flex flex-col shrink-0 border border-slate-200 rounded-lg overflow-hidden">
+            <button onClick={order.onUp} disabled={!order.canUp} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:text-slate-400 disabled:hover:bg-transparent">
               <ChevronUp size={16} />
             </button>
-            <button onClick={order.onDown} disabled={!order.canDown} className="p-1 text-slate-300 hover:text-slate-600 disabled:opacity-30 disabled:hover:text-slate-300">
+            <div className="border-t border-slate-200" />
+            <button onClick={order.onDown} disabled={!order.canDown} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:text-slate-400 disabled:hover:bg-transparent">
               <ChevronDown size={16} />
             </button>
           </div>
@@ -147,12 +148,12 @@ function JobRow({ job, customer, overdue, onComplete, onReschedule, order }) {
         </Button>
       </div>
       <div className="flex items-center justify-between mt-2.5">
-        <button onClick={onReschedule} className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600">
-          <Clock size={12} /> Can't do it today
+        <button onClick={onReschedule} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
+          <Clock size={13} /> Can't do it today
         </button>
         {priced && (
-          <label className="flex items-center gap-1.5 text-xs text-slate-500">
-            <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} className="w-3.5 h-3.5 accent-blue-600" />
+          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <input type="checkbox" checked={paidNow} onChange={(e) => setPaidNow(e.target.checked)} className="w-4 h-4 accent-blue-600" />
             Paid on the spot
           </label>
         )}
@@ -169,6 +170,11 @@ function AddNoteModal({ customers, priorityIds, onCancel, onSave }) {
   const [query, setQuery] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  // A stray tap outside the box shouldn't silently throw away a typed note.
+  const dismiss = () => {
+    if (note.trim() && !confirm("Discard this note?")) return;
+    onCancel();
+  };
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -189,11 +195,11 @@ function AddNoteModal({ customers, priorityIds, onCancel, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/30 px-4 py-6 overflow-y-auto" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/30 px-4 py-6 overflow-y-auto" onClick={dismiss}>
       <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="font-semibold text-lg text-slate-900">Add a note</h2>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={dismiss} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         {!customer ? (
           <div className="px-5 py-4">
@@ -401,11 +407,11 @@ export default function TodaySimple({
         )}
 
         <div className="flex items-center gap-2">
-          <Button variant="secondary" className="flex-1" onClick={() => setAddingNote(true)}>
-            <StickyNote size={15} /> Add note
+          <Button variant="secondary" className="flex-1 !py-1.5 !text-xs" onClick={() => setAddingNote(true)}>
+            <StickyNote size={13} /> Add note
           </Button>
-          <Button variant="secondary" className="flex-1" onClick={() => setAddingJob(true)}>
-            <Plus size={15} /> New job
+          <Button variant="secondary" className="flex-1 !py-1.5 !text-xs" onClick={() => setAddingJob(true)}>
+            <Plus size={13} /> New job
           </Button>
         </div>
 
@@ -475,32 +481,37 @@ export default function TodaySimple({
 
         <MorningCheck jobs={jobs} customers={customers} checklist={effectiveChecklist} baseChecklist={checklist} onSaveChecklist={onSaveChecklist} />
 
-        {(overdueInvoiceCount > 0 || newLeadCount > 0) && (
-          <div className="space-y-2">
-            {overdueInvoiceCount > 0 && (
-              <button
-                onClick={() => onGoAdvanced("billing")}
-                className="flex items-center justify-between w-full bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium hover:bg-rose-100 transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <Receipt size={15} /> {overdueInvoiceCount} overdue {overdueInvoiceCount === 1 ? "invoice" : "invoices"}
-                </span>
-                <ArrowUpRight size={15} />
-              </button>
-            )}
-            {newLeadCount > 0 && (
-              <button
-                onClick={() => onGoAdvanced("leads")}
-                className="flex items-center justify-between w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-4 py-3 text-sm font-medium hover:bg-blue-100 transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <Inbox size={15} /> {newLeadCount} new {newLeadCount === 1 ? "lead" : "leads"} waiting
-                </span>
-                <ArrowUpRight size={15} />
-              </button>
-            )}
-          </div>
-        )}
+        {overdueInvoiceCount > 0 && newLeadCount > 0 ? (
+          <button
+            onClick={() => onGoAdvanced("billing")}
+            className="flex items-center justify-between w-full bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm font-medium hover:bg-amber-100 transition-colors"
+          >
+            <span>
+              {overdueInvoiceCount} overdue {overdueInvoiceCount === 1 ? "invoice" : "invoices"} · {newLeadCount} new {newLeadCount === 1 ? "lead" : "leads"} - need a look
+            </span>
+            <ArrowUpRight size={15} className="shrink-0" />
+          </button>
+        ) : overdueInvoiceCount > 0 ? (
+          <button
+            onClick={() => onGoAdvanced("billing")}
+            className="flex items-center justify-between w-full bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium hover:bg-rose-100 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Receipt size={15} /> {overdueInvoiceCount} overdue {overdueInvoiceCount === 1 ? "invoice" : "invoices"}
+            </span>
+            <ArrowUpRight size={15} />
+          </button>
+        ) : newLeadCount > 0 ? (
+          <button
+            onClick={() => onGoAdvanced("leads")}
+            className="flex items-center justify-between w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-4 py-3 text-sm font-medium hover:bg-blue-100 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Inbox size={15} /> {newLeadCount} new {newLeadCount === 1 ? "lead" : "leads"} waiting
+            </span>
+            <ArrowUpRight size={15} />
+          </button>
+        ) : null}
       </div>
 
       {completingNoPrice && (

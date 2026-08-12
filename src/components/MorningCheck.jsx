@@ -6,6 +6,19 @@ import EditChecklistModal from "./EditChecklistModal";
 
 const cleanPhone = (p) => (p || "").replace(/[^0-9+]/g, "");
 
+// Ticks are day-scoped so they reset naturally each morning, but survive an
+// accidental reload mid-morning (phone backgrounding, low memory) instead of
+// silently losing progress he already made loading the van.
+const checklistStorageKey = () => `tydie_checklist_${todayStr()}`;
+function loadChecked() {
+  try {
+    const raw = localStorage.getItem(checklistStorageKey());
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 // One compact card covering the two things he actually does each morning/
 // evening: check what he needs to pack, and confirm tomorrow's jobs by text.
 // Only renders when there's something to show, and stays out of the way otherwise.
@@ -15,7 +28,7 @@ const cleanPhone = (p) => (p || "").replace(/[^0-9+]/g, "");
 // temporary extras, so editing never accidentally saves job-specific items
 // into the everyday list.
 export default function MorningCheck({ jobs, customers, checklist, baseChecklist, onSaveChecklist }) {
-  const [checked, setChecked] = useState(() => new Set());
+  const [checked, setChecked] = useState(loadChecked);
   const [editing, setEditing] = useState(false);
 
   const today = todayStr();
@@ -29,6 +42,11 @@ export default function MorningCheck({ jobs, customers, checklist, baseChecklist
     setChecked((prev) => {
       const next = new Set(prev);
       next.has(item) ? next.delete(item) : next.add(item);
+      try {
+        localStorage.setItem(checklistStorageKey(), JSON.stringify([...next]));
+      } catch {
+        // best-effort - a full/blocked localStorage shouldn't break ticking
+      }
       return next;
     });
 

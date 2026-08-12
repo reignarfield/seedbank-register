@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
-import { todayStr } from "./lib/dates";
+import { Loader2 } from "lucide-react";
+import { todayStr, addDays } from "./lib/dates";
 import {
   getSession,
   onAuthChange,
@@ -52,6 +52,7 @@ import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
 import PasswordRecovery from "./components/PasswordRecovery";
 import SignInForm from "./components/SignInForm";
+import Toast from "./components/Toast";
 import logo from "./assets/tydie-logo.png";
 
 // Everything under /team is the staff-only admin app (sign-in required).
@@ -88,7 +89,7 @@ export default function App() {
   const [mode, setMode] = useState("simple"); // "simple" (Today, one-tap) | "advanced" (full app)
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);
   const [recovering, setRecovering] = useState(false);
 
   const [customers, setCustomers] = useState([]);
@@ -118,8 +119,14 @@ export default function App() {
   const [quoteDraft, setQuoteDraft] = useState(null);
   const [invoiceDraft, setInvoiceDraft] = useState(null);
 
+  // Shown on both Today and the full app - previously a failed write just
+  // did nothing visible, especially on Today which had no error surface
+  // at all. Callers still throw after calling this, so their own
+  // try/finally (spinners, "only close on success") keeps working exactly
+  // as before - this only adds visibility.
+  const notifyError = (message) => setToast({ message });
+
   const reload = async () => {
-    setError("");
     try {
       const [c, j, q, i, l, ex, re, tr, st, cn] = await Promise.all([
         fetchCustomers(),
@@ -144,7 +151,7 @@ export default function App() {
       setSettings(st);
       setCustomerNotes(cn);
     } catch (e) {
-      setError("Could not load data: " + (e?.message || "unknown error"));
+      notifyError("Could not load data: " + (e?.message || "unknown error"));
     }
   };
 
@@ -191,27 +198,47 @@ export default function App() {
 
   // ---- Jobs ----
   const saveJob = async (j) => {
-    await upsertJob(j);
-    await reload();
+    try {
+      await upsertJob(j);
+      await reload();
+    } catch (e) {
+      notifyError("Couldn't save that job - check your connection and try again.");
+      throw e;
+    }
   };
   const completeJobAndReload = async (j, paidNow) => {
-    const pos = currentPosition(trips, customers, settings);
-    await completeJob(j, { paidNow });
-    const customer = customers.find((c) => c.id === j.customer_id);
-    if (customer) logAutoTrip(pos, customer, j.job_type).catch(() => {});
-    await reload();
+    try {
+      const pos = currentPosition(trips, customers, settings);
+      await completeJob(j, { paidNow });
+      const customer = customers.find((c) => c.id === j.customer_id);
+      if (customer) logAutoTrip(pos, customer, j.job_type).catch(() => {});
+      await reload();
+    } catch (e) {
+      notifyError("Couldn't mark that job done - check your connection and try again.");
+      throw e;
+    }
   };
   // "I'm heading home now" - closes a loop by logging the final leg back to
   // base, so the next job completed (even much later, a second loop) starts
   // fresh from home instead of chaining off wherever the last job was.
   const headingHome = async () => {
-    const pos = currentPosition(trips, customers, settings);
-    await logHeadingHome(pos, { label: settings.home_base_address, lat: settings.home_base_lat, lng: settings.home_base_lng }).catch(() => {});
-    await reload();
+    try {
+      const pos = currentPosition(trips, customers, settings);
+      await logHeadingHome(pos, { label: settings.home_base_address, lat: settings.home_base_lat, lng: settings.home_base_lng }).catch(() => {});
+      await reload();
+    } catch (e) {
+      notifyError("Couldn't log that - check your connection and try again.");
+      throw e;
+    }
   };
   const cancelJob = async (j) => {
-    await upsertJob({ ...j, status: "cancelled" });
-    await reload();
+    try {
+      await upsertJob({ ...j, status: "cancelled" });
+      await reload();
+    } catch (e) {
+      notifyError("Couldn't cancel that job - check your connection and try again.");
+      throw e;
+    }
   };
   const removeJob = async (id) => {
     await deleteJob(id);
@@ -272,8 +299,13 @@ export default function App() {
     await reload();
   };
   const saveMileageSettings = async (s) => {
-    const saved = await saveSettings({ ...settings, ...s });
-    setSettings(saved);
+    try {
+      const saved = await saveSettings({ ...settings, ...s });
+      setSettings(saved);
+    } catch (e) {
+      notifyError("Couldn't save that - check your connection and try again.");
+      throw e;
+    }
   };
   // Best-effort geocode cache - update local state immediately, persist quietly.
   const cacheCustomerCoords = (id, lat, lng) => {
@@ -283,8 +315,13 @@ export default function App() {
 
   // ---- Customer notes ----
   const addNote = async (customerId, note) => {
-    await addCustomerNote(customerId, note);
-    await reload();
+    try {
+      await addCustomerNote(customerId, note);
+      await reload();
+    } catch (e) {
+      notifyError("Couldn't save that note - check your connection and try again.");
+      throw e;
+    }
   };
 
   // ---- Leads ----
@@ -339,6 +376,19 @@ export default function App() {
     scheduleForCustomer(customer, quote);
   };
 
+  // A completed job that skipped the price prompt never gets an invoice
+  // raised automatically - this is the way back, reusing the invoiceDraft
+  // hand-off already built for Billing rather than a new flow.
+  const raiseInvoiceForJob = (job) => {
+    setInvoiceDraft({
+      customer_id: job.customer_id,
+      job_id: job.id,
+      description: job.notes || "",
+      due_date: addDays(todayStr(), 14),
+    });
+    setView("billing");
+  };
+
   const newLeadCount = leads.filter((l) => l.status === "new").length;
 
   // Public booking page - this is the default for every path except /team,
@@ -376,8 +426,9 @@ export default function App() {
 
   if (mode === "simple") {
     return (
-      <TodaySimple
-        jobs={jobs}
+      <>
+        <TodaySimple
+          jobs={jobs}
         customers={customers}
         checklist={settings.packing_checklist || []}
         typeChecklists={settings.type_checklists || {}}
@@ -403,19 +454,14 @@ export default function App() {
           if (tab) setView(tab);
         }}
       />
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+      </>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       <NavBar view={view} setView={setView} onGoSimple={() => setMode("simple")} onLogout={handleLogout} leadBadge={newLeadCount} />
-      {error && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
-          <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg px-4 py-2.5 flex items-center gap-2">
-            <AlertCircle size={15} /> {error}
-          </div>
-        </div>
-      )}
 
       {view === "dashboard" && (
         <Dashboard
@@ -456,6 +502,7 @@ export default function App() {
           onComplete={completeJobAndReload}
           onCancelJob={cancelJob}
           onDelete={removeJob}
+          onRaiseInvoice={raiseInvoiceForJob}
           draftCustomer={scheduleDraftCustomer}
           draftQuote={scheduleDraftQuote}
           onDraftConsumed={() => {
@@ -507,6 +554,8 @@ export default function App() {
       {view === "customerpage" && <CustomerPage />}
 
       {view === "dev" && <Dev />}
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

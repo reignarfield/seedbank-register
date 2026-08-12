@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, CalendarDays, Loader2, X, Check, Ban, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, CalendarDays, Loader2, X, Check, Ban, Trash2, AlertTriangle, Receipt } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
 import { formatDate, todayStr, nextDueDate } from "../lib/dates";
 import { PRICE_GROUPS } from "../lib/pricing";
@@ -39,13 +39,19 @@ export function JobForm({ initial, customers, onCancel, onSave, saving }) {
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
   const canSave = !!form.customer_id && !!form.scheduled_date;
   const isEdit = !!form.id;
+  // A stray tap outside the box shouldn't silently throw away typed fields.
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
+  const dismiss = () => {
+    if (isDirty && !confirm("Discard this job?")) return;
+    onCancel();
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/30 px-4 py-6 overflow-y-auto" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/30 px-4 py-6 overflow-y-auto" onClick={dismiss}>
       <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="font-semibold text-lg text-slate-900">{isEdit ? "Edit job" : "New job"}</h2>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={dismiss} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <div className="px-5 py-4 space-y-3">
           <Field label="Customer" required>
@@ -139,7 +145,7 @@ export function CompleteNoPricePrompt({ job, customerName, onCancel, onConfirm }
   );
 }
 
-export default function Schedule({ customers, jobs, onSave, onComplete, onCancelJob, onDelete, draftCustomer, draftQuote, onDraftConsumed }) {
+export default function Schedule({ customers, jobs, onSave, onComplete, onCancelJob, onDelete, onRaiseInvoice, draftCustomer, draftQuote, onDraftConsumed }) {
   const [filter, setFilter] = useState("upcoming");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -242,9 +248,11 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
                     <div className="text-sm font-medium text-slate-700">{formatDate(j.scheduled_date)}</div>
                     {hasPrice(j) ? (
                       <div className="text-xs text-slate-400 tabular-nums">{money(j.price)}</div>
-                    ) : (
-                      j.status === "scheduled" && <div className="text-xs text-amber-600">No price set</div>
-                    )}
+                    ) : j.status === "scheduled" ? (
+                      <div className="text-xs text-amber-600">No price set</div>
+                    ) : j.status === "completed" ? (
+                      <div className="text-xs text-amber-600">No invoice raised</div>
+                    ) : null}
                   </div>
                   {j.status === "scheduled" && (
                     <div className="flex items-center gap-1 shrink-0">
@@ -255,6 +263,11 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
                         <Ban size={16} />
                       </button>
                     </div>
+                  )}
+                  {j.status === "completed" && !hasPrice(j) && (
+                    <button title="Invoice now" onClick={() => onRaiseInvoice(j)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 shrink-0">
+                      <Receipt size={16} />
+                    </button>
                   )}
                   {j.status !== "scheduled" && (
                     <button title="Delete" onClick={() => confirm("Delete this job?") && onDelete(j.id)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 shrink-0">
