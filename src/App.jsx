@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { todayStr, addDays } from "./lib/dates";
+import { isDemoMode, setDemoMode } from "./lib/dataMode";
 import {
   getSession,
   onAuthChange,
@@ -90,6 +91,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [demoMode, setDemoModeState] = useState(isDemoMode());
   const [recovering, setRecovering] = useState(false);
 
   const [customers, setCustomers] = useState([]);
@@ -184,6 +186,15 @@ export default function App() {
     setCustomerNotes([]);
     setView("dashboard");
     setMode("simple");
+  };
+
+  // Flip the whole data layer between the real database and the in-memory
+  // demo set. Auth is untouched either way, so this can't be used to get in.
+  const toggleDemoMode = async (on) => {
+    setDemoMode(on);
+    setDemoModeState(on);
+    setView("dashboard");
+    await reload();
   };
 
   // ---- Customers ----
@@ -448,6 +459,8 @@ export default function App() {
         onStartDay={() => saveMileageSettings({ day_started_date: todayStr() })}
         invoices={invoices}
         leads={leads}
+        demoMode={demoMode}
+        onExitDemo={() => toggleDemoMode(false)}
         onLogout={handleLogout}
         onGoAdvanced={(tab) => {
           setMode("advanced");
@@ -461,7 +474,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <NavBar view={view} setView={setView} onGoSimple={() => setMode("simple")} onLogout={handleLogout} leadBadge={newLeadCount} />
+      <NavBar view={view} setView={setView} onGoSimple={() => setMode("simple")} onLogout={handleLogout} leadBadge={newLeadCount} demoMode={demoMode} onExitDemo={() => toggleDemoMode(false)} />
 
       {view === "dashboard" && (
         <Dashboard
@@ -553,7 +566,7 @@ export default function App() {
 
       {view === "customerpage" && <CustomerPage />}
 
-      {view === "dev" && <Dev />}
+      {view === "dev" && <Dev demoMode={demoMode} onToggleDemo={toggleDemoMode} />}
 
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

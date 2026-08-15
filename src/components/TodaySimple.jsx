@@ -128,7 +128,7 @@ function JobRow({ job, customer, overdue, onComplete, onReschedule, order }) {
         {customer?.phone && (
           <a
             href={`tel:${cleanPhone(customer.phone)}`}
-            className="flex items-center justify-center gap-1.5 flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-1.5 flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-medium px-2 py-2.5 rounded-lg transition-colors whitespace-nowrap"
           >
             <Phone size={15} /> Call
           </a>
@@ -138,12 +138,12 @@ function JobRow({ job, customer, overdue, onComplete, onReschedule, order }) {
             href={mapsLink(customer.address)}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center justify-center gap-1.5 flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-medium px-3 py-2.5 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-1.5 flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-medium px-2 py-2.5 rounded-lg transition-colors whitespace-nowrap"
           >
             <Navigation size={15} /> Navigate
           </a>
         )}
-        <Button className="flex-[1.4] !py-2.5" onClick={() => onComplete(priced ? paidNow : false)}>
+        <Button className="flex-[1.4] !py-2.5 !px-2 whitespace-nowrap" onClick={() => onComplete(priced ? paidNow : false)}>
           <Check size={16} strokeWidth={2.5} /> Mark done
         </Button>
       </div>
@@ -263,6 +263,8 @@ export default function TodaySimple({
   onStartDay,
   invoices,
   leads,
+  demoMode,
+  onExitDemo,
   onLogout,
   onGoAdvanced,
 }) {
@@ -358,16 +360,25 @@ export default function TodaySimple({
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 overflow-hidden">
               <img src="/tydie-icon-48.png" alt="" width={36} height={36} className="w-full h-full object-cover" />
             </div>
-            <div className="font-semibold text-lg text-slate-900 tracking-tight">Tydie Cleaning</div>
+            <div className="font-semibold text-lg text-slate-900 tracking-tight whitespace-nowrap truncate">Tydie Cleaning</div>
+            {demoMode && (
+              <button
+                onClick={onExitDemo}
+                title="Showing demo data - tap to go back to real data"
+                className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-full px-2 py-0.5 transition-colors"
+              >
+                DEMO
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => onGoAdvanced()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors whitespace-nowrap shrink-0"
             >
               Full app <ArrowUpRight size={14} strokeWidth={2.25} />
             </button>

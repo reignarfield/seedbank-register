@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Sparkles, FolderKanban } from "lucide-react";
-import { Card, EmptyState } from "./ui";
+import { Sparkles, FolderKanban, FlaskConical, Database } from "lucide-react";
+import { Card, EmptyState, Button } from "./ui";
 import DayInTheLife from "./DayInTheLife";
 
 // Newest first. No dates on purpose - these were written up after the fact
@@ -38,7 +38,7 @@ const CHANGELOG = [
   { title: "Rebuilt from the old Seedbank Register", detail: "This app started life as an unrelated seed-inventory tracker and was completely replaced with the window-cleaning job manager." },
 ];
 
-export default function Dev() {
+export default function Dev({ demoMode, onToggleDemo }) {
   const [tab, setTab] = useState("changelog");
 
   return (
@@ -47,6 +47,31 @@ export default function Dev() {
         <h1 className="text-2xl font-semibold text-slate-900">Dev</h1>
         <p className="text-sm text-slate-500 mt-1">What's been built, and a reserved spot for other projects.</p>
       </div>
+
+      <Card className={`p-4 mb-5 ${demoMode ? "border-amber-300 bg-amber-50/60" : ""}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              {demoMode ? <FlaskConical size={15} className="text-amber-600" /> : <Database size={15} className="text-blue-600" />}
+              <span className="text-sm font-semibold text-slate-900">
+                {demoMode ? "Showing demo data" : "Showing real data"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">
+              {demoMode
+                ? "A realistic sample business, held in memory only. Nothing you do here touches the real records, and it resets when you reload."
+                : "The live business records. Switch to demo data to explore or show the app without changing anything real."}
+            </p>
+          </div>
+          <Button
+            variant={demoMode ? "secondary" : "primary"}
+            className="shrink-0"
+            onClick={() => onToggleDemo(!demoMode)}
+          >
+            {demoMode ? "Use real data" : "Use demo data"}
+          </Button>
+        </div>
+      </Card>
 
       <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 mb-5 w-fit">
         <button

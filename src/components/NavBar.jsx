@@ -12,7 +12,7 @@ const TABS = [
   { id: "dev", label: "Dev", icon: Wrench },
 ];
 
-export default function NavBar({ view, setView, onGoSimple, onLogout, leadBadge }) {
+export default function NavBar({ view, setView, onGoSimple, onLogout, leadBadge, demoMode, onExitDemo }) {
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -25,6 +25,15 @@ export default function NavBar({ view, setView, onGoSimple, onLogout, leadBadge 
               <div className="font-semibold text-lg text-slate-900 tracking-tight">Tydie Cleaning</div>
               <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400 -mt-0.5">Job Manager</div>
             </div>
+            {demoMode && (
+              <button
+                onClick={onExitDemo}
+                title="Showing demo data - tap to go back to real data"
+                className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-full px-2 py-0.5 transition-colors"
+              >
+                DEMO
+              </button>
+            )}
           </div>
           <nav className="flex items-center gap-2">
             <div className="hidden md:flex items-center gap-1 bg-slate-100 rounded-full p-1">
