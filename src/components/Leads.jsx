@@ -1,7 +1,60 @@
 import React, { useMemo, useState } from "react";
-import { Inbox, UserPlus, FileText, Trash2, Phone, Mail } from "lucide-react";
+import { Inbox, UserPlus, FileText, Trash2, Phone, Mail, Eye, Building2, Loader2 } from "lucide-react";
 import { Card, Select, Button, StatusPill, EmptyState } from "./ui";
 import { formatDate } from "../lib/dates";
+import { quickHint, lookupProperty, describe } from "../lib/property";
+
+// HANDOFF 3/4 - what sort of building is this?
+//
+// A quote is a guess about a building, and people describe their own house
+// badly. The unit number in the address is free and instant, so it shows on
+// every lead. The map lookup costs a request and often knows nothing, so it
+// happens when he asks - one address, one tap.
+//
+// The only thing this is allowed to conclude is "worth a look before you
+// price it". It never suggests a price and never says a building is simple.
+function PropertyHint({ address }) {
+  const [looked, setLooked] = useState(null);
+  const [looking, setLooking] = useState(false);
+  const hint = looked || quickHint(address);
+
+  const look = async () => {
+    setLooking(true);
+    try {
+      const found = describe(await lookupProperty(address));
+      // "Nothing on the map" is a real answer and has to be shown as one,
+      // or he taps it again tomorrow expecting something different.
+      setLooked(found || { text: "Nothing on the map for this address", why: "", needsEyes: false, empty: true });
+    } finally {
+      setLooking(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap mt-1">
+      {hint && (
+        <span
+          title={hint.why}
+          className={`inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 border ${
+            hint.needsEyes ? "border-amber-300 bg-amber-50 text-amber-800" : "border-slate-200 text-slate-500"
+          }`}
+        >
+          <Building2 size={11} /> {hint.text}
+          {hint.needsEyes && <span className="font-medium">· worth a look first</span>}
+        </span>
+      )}
+      {!looked && (
+        <button
+          onClick={look}
+          disabled={looking}
+          className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-blue-700 disabled:opacity-50"
+        >
+          {looking ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />} Check the map
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustomer, onCreateQuote }) {
   const [filter, setFilter] = useState("all");
@@ -52,7 +105,12 @@ export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustome
                     {l.phone && <span className="flex items-center gap-1"><Phone size={11} /> {l.phone}</span>}
                     {l.email && <span className="flex items-center gap-1"><Mail size={11} /> {l.email}</span>}
                   </div>
-                  {l.address && <div className="text-xs text-slate-500 mt-0.5">{l.address}</div>}
+                  {l.address && (
+                    <div className="mt-0.5">
+                      <div className="text-xs text-slate-500">{l.address}</div>
+                      <PropertyHint address={l.address} />
+                    </div>
+                  )}
                   {l.message && <p className="text-sm text-slate-600 mt-2">{l.message}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
