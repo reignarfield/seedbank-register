@@ -29,7 +29,9 @@ import { todayStr, addDays, formatDate } from "../lib/dates";
 import { fetchRainChance } from "../lib/weather";
 import MorningCheck from "./MorningCheck";
 import { ActivityTodayLine } from "./ActivityFeed";
-import { jobsToday, jobsOverdue, jobsCompletedToday, invoicesOverdue, leadsNew } from "../lib/today";
+import TodoList from "./TodoList";
+import { buildTodos } from "../lib/todo";
+import { jobsToday, jobsOverdue, jobsCompletedToday } from "../lib/today";
 import { CompleteNoPricePrompt, JobForm } from "./Schedule";
 
 const cleanPhone = (p) => (p || "").replace(/[^0-9+]/g, "");
@@ -270,6 +272,14 @@ export default function TodaySimple({
   customerNotes = [],
   activity = [],
   onUndoActivity,
+  quotes = [],
+  renewals = [],
+  settings = {},
+  todoState = {},
+  onTodoAction,
+  onTodoSnooze,
+  onTodoDismiss,
+  onTodoDone,
   checklist,
   typeChecklists = {},
   onSaveChecklist,
@@ -338,8 +348,12 @@ export default function TodaySimple({
     [checklist, typeChecklists, relevantTypes]
   );
 
-  const overdueInvoiceCount = useMemo(() => invoicesOverdue(invoices, today).length, [invoices, today]);
-  const newLeadCount = useMemo(() => leadsNew(leads).length, [leads]);
+  // Everything that isn't a job in the van but still needs him, with one
+  // action each. Built fresh from live data; see lib/todo.js for the order.
+  const todos = useMemo(
+    () => buildTodos({ customers, jobs, invoices, quotes, leads, renewals, settings, state: todoState, today }),
+    [customers, jobs, invoices, quotes, leads, renewals, settings, todoState, today]
+  );
 
   const priorityIds = useMemo(() => new Set([...overdueJobs, ...todaysJobs].map((j) => j.customer_id)), [overdueJobs, todaysJobs]);
 
@@ -511,41 +525,12 @@ export default function TodaySimple({
           </button>
         )}
 
-        <MorningCheck jobs={jobs} customers={customers} checklist={effectiveChecklist} baseChecklist={checklist} onSaveChecklist={onSaveChecklist} />
-
         <ActivityTodayLine activity={activity} onUndo={onUndoActivity} />
 
-        {overdueInvoiceCount > 0 && newLeadCount > 0 ? (
-          <button
-            onClick={() => onGoAdvanced("billing")}
-            className="flex items-center justify-between w-full bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm font-medium hover:bg-amber-100 transition-colors"
-          >
-            <span>
-              {overdueInvoiceCount} overdue {overdueInvoiceCount === 1 ? "invoice" : "invoices"} · {newLeadCount} new {newLeadCount === 1 ? "lead" : "leads"} - need a look
-            </span>
-            <ArrowUpRight size={15} className="shrink-0" />
-          </button>
-        ) : overdueInvoiceCount > 0 ? (
-          <button
-            onClick={() => onGoAdvanced("billing")}
-            className="flex items-center justify-between w-full bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-3 text-sm font-medium hover:bg-rose-100 transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              <Receipt size={15} /> {overdueInvoiceCount} overdue {overdueInvoiceCount === 1 ? "invoice" : "invoices"}
-            </span>
-            <ArrowUpRight size={15} />
-          </button>
-        ) : newLeadCount > 0 ? (
-          <button
-            onClick={() => onGoAdvanced("leads")}
-            className="flex items-center justify-between w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-4 py-3 text-sm font-medium hover:bg-blue-100 transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              <Inbox size={15} /> {newLeadCount} new {newLeadCount === 1 ? "lead" : "leads"} waiting
-            </span>
-            <ArrowUpRight size={15} />
-          </button>
-        ) : null}
+        <TodoList items={todos} onAction={onTodoAction} onSnooze={onTodoSnooze} onDismiss={onTodoDismiss} onDone={onTodoDone} />
+
+        <MorningCheck jobs={jobs} customers={customers} checklist={effectiveChecklist} baseChecklist={checklist} onSaveChecklist={onSaveChecklist} />
+
       </div>
 
       {completingNoPrice && (

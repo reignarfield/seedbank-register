@@ -357,14 +357,29 @@ export async function fetchUsageEvents(limit = 2000) {
   if (error) throw error;
   return data || [];
 }
-export async function submitFeedback({ message, trying_to, screen, session_id }) {
-  const { error } = await supabase.from("feedback").insert({ message, trying_to, screen, session_id });
+export async function submitFeedback({ message, trying_to, screen, session_id, user_email }) {
+  const { error } = await supabase.from("feedback").insert({ message, trying_to, screen, session_id, user_email });
   if (error) throw error;
 }
 export async function fetchFeedback() {
   const { data, error } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(200);
   if (error) throw error;
   return data || [];
+}
+
+// ---------------------------------------------------------------------------
+// todo_state: what he did about each "Needs you" item - snoozed or dismissed.
+// ---------------------------------------------------------------------------
+export async function fetchTodoState() {
+  const { data, error } = await supabase.from("todo_state").select("*");
+  if (error) throw error;
+  const map = {};
+  for (const r of data || []) map[r.key] = r;
+  return map;
+}
+export async function setTodoState(key, { snoozed_until = null, dismissed_at = null }) {
+  const { error } = await supabase.from("todo_state").upsert({ key, snoozed_until, dismissed_at, updated_at: new Date().toISOString() }, { onConflict: "key" });
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------------

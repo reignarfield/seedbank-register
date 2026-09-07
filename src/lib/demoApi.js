@@ -388,3 +388,10 @@ export const uploadReceipt = async (file) => {
   return path;
 };
 export const receiptUrl = async (path) => (path ? receiptStore.get(path) || null : null);
+
+// ---- Needs-you state (snoozes / dismissals) ----
+let todoState = {};
+export const fetchTodoState = async () => ({ ...todoState });
+export const setTodoState = async (key, { snoozed_until = null, dismissed_at = null }) => {
+  todoState = { ...todoState, [key]: { key, snoozed_until, dismissed_at, updated_at: new Date().toISOString() } };
+};

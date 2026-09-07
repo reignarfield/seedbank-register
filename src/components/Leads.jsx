@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Inbox, UserPlus, FileText, Trash2, Phone, Mail } from "lucide-react";
 import { Card, Select, Button, StatusPill, EmptyState } from "./ui";
 import { formatDate } from "../lib/dates";
+import PlaceGlance from "./PlaceGlance";
 
 export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustomer, onCreateQuote }) {
   const [filter, setFilter] = useState("all");
@@ -53,6 +54,7 @@ export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustome
                     {l.email && <span className="flex items-center gap-1"><Mail size={11} /> {l.email}</span>}
                   </div>
                   {l.address && <div className="text-xs text-slate-500 mt-0.5">{l.address}</div>}
+                  {l.address && <PlaceGlance address={l.address} />}
                   {l.message && <p className="text-sm text-slate-600 mt-2">{l.message}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { MessageSquarePlus, X, Loader2, Check } from "lucide-react";
 import { Button, TextArea, TextInput, Field } from "./ui";
 import { submitFeedback } from "../lib/api";
-import { currentScreen, currentSessionId, trackFeedback } from "../lib/track";
+import { currentScreen, currentSessionId, trackFeedback, trackedUser } from "../lib/track";
 
 // A small button in the corner, always there, never in the way. It records
 // which screen it was pressed on so a suggestion arrives with its context.
@@ -26,7 +26,7 @@ export default function FeedbackButton() {
     setBusy(true);
     try {
       const screen = currentScreen();
-      await submitFeedback({ message: message.trim(), trying_to: tryingTo.trim() || null, screen, session_id: currentSessionId() });
+      await submitFeedback({ message: message.trim(), trying_to: tryingTo.trim() || null, screen, session_id: currentSessionId(), user_email: trackedUser().email });
       trackFeedback(screen);
       setSent(true);
       setTimeout(close, 1400);

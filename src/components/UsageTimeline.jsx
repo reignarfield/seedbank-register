@@ -35,7 +35,7 @@ function Session({ s, open, onToggle }) {
     <Card className="overflow-hidden">
       <button onClick={onToggle} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-slate-900">{fmtDay(s.start)} · {fmtTime(s.start)}</div>
+          <div className="text-sm font-medium text-slate-900">{fmtDay(s.start)} · {fmtTime(s.start)}{s.who ? <span className="text-xs font-normal text-slate-400"> · {s.who}</span> : null}</div>
           <div className="text-xs text-slate-500 flex items-center gap-3 mt-0.5">
             <span className="flex items-center gap-1"><Clock size={11} /> {fmtMs(total)}</span>
             <span className="flex items-center gap-1"><MousePointerClick size={11} /> {taps} taps</span>
@@ -80,6 +80,7 @@ export default function UsageTimeline({ onBack }) {
   const [events, setEvents] = useState(null);
   const [feedback, setFeedback] = useState([]);
   const [openId, setOpenId] = useState(null);
+  const [who, setWho] = useState("all");
 
   useEffect(() => {
     Promise.all([fetchUsageEvents(), fetchFeedback()])
@@ -87,26 +88,30 @@ export default function UsageTimeline({ onBack }) {
       .catch(() => { setEvents([]); });
   }, []);
 
+  // Everyone who's shown up in the log, so the timeline can be read per person.
+  const people = useMemo(() => [...new Set((events || []).map((e) => e.user_email || "unknown"))].sort(), [events]);
+  const filtered = useMemo(() => (who === "all" ? events : (events || []).filter((e) => (e.user_email || "unknown") === who)), [events, who]);
+
   const sessions = useMemo(() => {
-    if (!events) return [];
+    if (!filtered) return [];
     const m = new Map();
-    for (const e of [...events].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))) {
-      if (!m.has(e.session_id)) m.set(e.session_id, { id: e.session_id, start: e.occurred_at, events: [] });
+    for (const e of [...filtered].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))) {
+      if (!m.has(e.session_id)) m.set(e.session_id, { id: e.session_id, start: e.occurred_at, who: e.user_email, events: [] });
       m.get(e.session_id).events.push(e);
     }
     return [...m.values()].sort((a, b) => b.start.localeCompare(a.start));
-  }, [events]);
+  }, [filtered]);
 
   // Across every session: where does the time go, and what gets tapped most?
   const totals = useMemo(() => {
     const screen = new Map(), tap = new Map();
-    for (const e of events || []) {
+    for (const e of filtered || []) {
       if (e.kind === "screen") screen.set(e.screen, (screen.get(e.screen) || 0) + (e.duration_ms || 0));
       if (e.kind === "tap") tap.set(e.label, (tap.get(e.label) || 0) + 1);
     }
     const sortD = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
     return { screen: sortD(screen), tap: sortD(tap).slice(0, 12) };
-  }, [events]);
+  }, [filtered]);
 
   const exportCsv = () => {
     const rows = (events || []).map((e) => [e.occurred_at, e.session_id, e.kind, e.screen || "", e.label || "", e.duration_ms ?? "", JSON.stringify(e.meta || {})]);
@@ -133,6 +138,15 @@ export default function UsageTimeline({ onBack }) {
         <EmptyState icon={MousePointerClick} title="Nothing recorded yet." subtitle="Once the app's been opened and used, sessions show up here." />
       ) : (
         <>
+          {people.length > 1 && (
+            <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 w-fit overflow-x-auto">
+              {["all", ...people].map((p) => (
+                <button key={p} onClick={() => setWho(p)} className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${who === p ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}>
+                  {p === "all" ? "Everyone" : p}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Card className="p-4">
               <SectionTitle>Where the time goes</SectionTitle>

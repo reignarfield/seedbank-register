@@ -18,6 +18,13 @@ let queue = [];
 let timer = null;
 let current = null; // { screen, since }
 let enabled = BUSINESS.features.tracking !== false;
+let user = { id: null, email: null };
+
+// Which login this is. user_id is also set by the database from auth.uid()
+// so it can't be faked; the email is for reading the timeline.
+export function setTrackedUser(u) {
+  user = { id: u?.id || null, email: u?.email || null };
+}
 
 function newSessionId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -34,7 +41,7 @@ function meta() {
 
 function push(evt) {
   if (!enabled || !sessionId) return;
-  queue.push({ session_id: sessionId, occurred_at: new Date().toISOString(), ...evt });
+  queue.push({ session_id: sessionId, occurred_at: new Date().toISOString(), user_email: user.email, ...evt });
   if (!timer) timer = setTimeout(flush, FLUSH_MS);
 }
 
@@ -112,6 +119,10 @@ export function currentScreen() {
 
 export function currentSessionId() {
   return sessionId;
+}
+
+export function trackedUser() {
+  return user;
 }
 
 // Attach once. Reads the tapped control's own words so the log says

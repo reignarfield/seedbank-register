@@ -576,6 +576,28 @@ drop policy if exists "authenticated full access" on public.feedback;
 create policy "authenticated full access" on public.feedback
   for all to authenticated using (true) with check (true);
 
+-- ---------------------------------------------------------------------------
+-- Who did what (per-login tracking) and Needs-you snoozes (migration 0013)
+-- ---------------------------------------------------------------------------
+alter table public.usage_events add column if not exists user_id uuid default auth.uid();
+alter table public.usage_events add column if not exists user_email text;
+create index if not exists usage_events_user_idx on public.usage_events(user_id, occurred_at desc);
+
+alter table public.feedback add column if not exists user_id uuid default auth.uid();
+alter table public.feedback add column if not exists user_email text;
+
+create table if not exists public.todo_state (
+  key text primary key,
+  snoozed_until date,
+  dismissed_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.todo_state enable row level security;
+drop policy if exists "authenticated full access" on public.todo_state;
+create policy "authenticated full access" on public.todo_state
+  for all to authenticated using (true) with check (true);
+
 -- ===========================================================================
 -- Done. Next: Authentication -> Users -> Add user (tick auto-confirm) to
 -- create the login you'll use at /team.

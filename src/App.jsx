@@ -43,6 +43,8 @@ import {
   fetchActivity,
   logActivity,
   undoActivity,
+  fetchTodoState,
+  setTodoState,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
 import TodaySimple from "./components/TodaySimple";
@@ -55,7 +57,8 @@ import Dev from "./components/Dev";
 import Settings from "./components/Settings";
 import UsageTimeline from "./components/UsageTimeline";
 import FeedbackButton from "./components/FeedbackButton";
-import { startSession, trackScreen, attachTapListener, flush as flushTracking } from "./lib/track";
+import { startSession, trackScreen, attachTapListener, flush as flushTracking, setTrackedUser } from "./lib/track";
+import { snoozeUntil } from "./lib/todo";
 import Mileage from "./components/Mileage";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
@@ -122,6 +125,7 @@ export default function App() {
   const [trips, setTrips] = useState([]);
   const [customerNotes, setCustomerNotes] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [todoState, setTodoStateLocal] = useState({});
   const [settings, setSettings] = useState({
     home_base_address: null,
     home_base_lat: null,
@@ -164,6 +168,7 @@ export default function App() {
     settings: [fetchSettings, setSettings],
     customerNotes: [fetchCustomerNotes, setCustomerNotes],
     activity: [fetchActivity, setActivity],
+    todoState: [fetchTodoState, setTodoStateLocal],
   };
 
   const reload = async (only) => {
@@ -201,6 +206,7 @@ export default function App() {
   // time, and every tap by its label. Only while signed in.
   useEffect(() => {
     if (!session) return;
+    setTrackedUser(session.user);
     startSession();
     const detach = attachTapListener();
     return () => {
@@ -310,6 +316,64 @@ export default function App() {
       throw e;
     }
   };
+  // "Needs you" - the app suggests, he decides. Snooze and dismiss are the
+  // only things stored; the list itself is rebuilt from live data each time.
+  const snoozeTodo = async (item, days) => {
+    const until = snoozeUntil(days);
+    setTodoStateLocal((s) => ({ ...s, [item.key]: { key: item.key, snoozed_until: until, dismissed_at: null } }));
+    await setTodoState(item.key, { snoozed_until: until }).catch(() => notifyError("Couldn't snooze that."));
+  };
+  const dismissTodo = async (item) => {
+    const at = new Date().toISOString();
+    setTodoStateLocal((s) => ({ ...s, [item.key]: { key: item.key, snoozed_until: null, dismissed_at: at } }));
+    await setTodoState(item.key, { dismissed_at: at }).catch(() => notifyError("Couldn't dismiss that."));
+  };
+  // A tap on a Text / Call link: he's about to send it himself, so note that
+  // and treat the item as handled (it comes back naturally if still needed).
+  const doneTodo = async (item, action) => {
+    if (action?.logs) {
+      await logActivity({ kind: "contacted", summary: action.logs, actor: "user", customer_id: item.customer?.id || null }).catch(() => {});
+      await reload(["activity"]);
+    }
+    if (item.kind === "confirm" || item.kind === "chase" || item.kind === "reach" || item.kind === "reply") await dismissTodo(item);
+  };
+  const todoAction = async (item, action) => {
+    switch (action.action) {
+      case "schedule":
+        scheduleForCustomer(item.customer);
+        setMode("advanced");
+        break;
+      case "scheduleQuote":
+        scheduleForCustomer(item.customer, item.ref);
+        setMode("advanced");
+        break;
+      case "convertQuote":
+        await convertQuoteToCustomerAndSchedule(item.ref);
+        setMode("advanced");
+        break;
+      case "raiseInvoice":
+        raiseInvoiceForJob(item.ref);
+        setMode("advanced");
+        break;
+      case "invoice":
+        setView("billing");
+        setMode("advanced");
+        break;
+      case "leads":
+        setView("leads");
+        setMode("advanced");
+        break;
+      case "markPaid":
+        await markPaid(item.ref);
+        break;
+      case "renewalDone":
+        await removeRenewal(item.ref.id);
+        break;
+      default:
+        break;
+    }
+  };
+
   const undoActivityItem = async (item) => {
     try {
       await undoActivity(item.id);
@@ -529,6 +593,14 @@ export default function App() {
         customerNotes={customerNotes}
         activity={activity}
         onUndoActivity={undoActivityItem}
+        quotes={liveQuotes}
+        renewals={renewals}
+        settings={settings}
+        todoState={todoState}
+        onTodoAction={todoAction}
+        onTodoSnooze={snoozeTodo}
+        onTodoDismiss={dismissTodo}
+        onTodoDone={doneTodo}
         checklist={settings.packing_checklist || []}
         typeChecklists={settings.type_checklists || {}}
         onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}

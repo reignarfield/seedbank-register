@@ -3,6 +3,7 @@ import { Search, Plus, Users, Loader2, Archive, X, History } from "lucide-react"
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState } from "./ui";
 import { dueStatus, formatDate, nextDueDate } from "../lib/dates";
 import { customersLapsed } from "../lib/today";
+import PlaceGlance from "./PlaceGlance";
 
 const FREQUENCY_OPTIONS = [
   { value: "", label: "One-off (not recurring)" },
@@ -46,6 +47,7 @@ function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
           </div>
           <Field label="Address">
             <TextInput value={form.address || ""} onChange={(e) => set("address", e.target.value)} placeholder="Street, suburb" />
+            <PlaceGlance address={form.address} lat={form.lat} lng={form.lng} onCoords={(lat, lng) => setForm((f) => ({ ...f, lat, lng }))} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Cleaning frequency">
