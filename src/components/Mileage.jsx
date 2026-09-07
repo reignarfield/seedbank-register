@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
-import { Car, Settings, Plus, Loader2, X, Trash2, Sparkles, Calculator } from "lucide-react";
+import { Car, Settings, Plus, Loader2, X, Archive, Sparkles, Calculator } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, EmptyState, money } from "./ui";
 import { formatDate, todayStr, financialYearStart, financialYearLabel } from "../lib/dates";
 import { geocode, drivingDistanceKm } from "../lib/geo";
+import { BUSINESS } from "../lib/business";
 
 const CAP_KM = 5000; // ATO cents-per-km method caps at 5,000 business km/year
 const RECENT_SHOWN = 5;
@@ -10,57 +11,6 @@ const RECENT_SHOWN = 5;
 function fmtKm(n) {
   const v = Number(n || 0);
   return `${v.toFixed(v % 1 === 0 ? 0 : 1)} km`;
-}
-
-// ---------------------------------------------------------------------------
-// Settings modal (home base + rate) - one-time setup, tucked behind a gear
-// ---------------------------------------------------------------------------
-function SettingsModal({ settings, onCancel, onSave }) {
-  const [address, setAddress] = useState(settings.home_base_address || "");
-  const [rate, setRate] = useState(settings.mileage_rate_cents ?? 88);
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const coords = address.trim() ? await geocode(address.trim()) : null;
-      await onSave({
-        home_base_address: address.trim() || null,
-        home_base_lat: coords?.lat ?? null,
-        home_base_lng: coords?.lng ?? null,
-        mileage_rate_cents: Number(rate) || 88,
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/30 px-4 py-6 overflow-y-auto" onClick={onCancel}>
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-lg text-slate-900">Mileage settings</h2>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
-        </div>
-        <div className="px-5 py-4 space-y-3">
-          <Field label="Home base address">
-            <TextInput value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Where you set off from" autoFocus />
-          </Field>
-          <p className="text-xs text-slate-400 -mt-1">Used to auto-calculate the distance to each job. Set once.</p>
-          <Field label="Cents per km rate">
-            <TextInput type="number" step="1" inputMode="numeric" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="88" />
-          </Field>
-          <p className="text-xs text-slate-400 -mt-1">The ATO rate (88c for 2024-25). Confirm the current rate with your accountant.</p>
-        </div>
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? <Loader2 size={15} className="animate-spin" /> : null} Save
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +156,7 @@ function TripModal({ initial, customers, settings, lastTripByCustomer, onCancel,
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
           {isEdit && onDelete && (
             <Button variant="danger" onClick={() => onDelete(form)} className="!px-3">
-              <Trash2 size={14} /> Delete
+              <Archive size={14} /> Archive
             </Button>
           )}
           <div className="flex-1" />
@@ -231,12 +181,11 @@ function TripModal({ initial, customers, settings, lastTripByCustomer, onCancel,
 }
 
 // ---------------------------------------------------------------------------
-export default function Mileage({ trips, customers, settings, onSaveTrip, onDeleteTrip, onSaveSettings, onCacheCoords }) {
-  const [editingSettings, setEditingSettings] = useState(false);
+export default function Mileage({ trips, customers, settings, onSaveTrip, onDeleteTrip, onOpenSettings, onCacheCoords }) {
   const [editingTrip, setEditingTrip] = useState(null);
   const [showAll, setShowAll] = useState(false);
 
-  const rate = settings.mileage_rate_cents ?? 88;
+  const rate = settings.mileage_rate_cents ?? BUSINESS.mileageRateCents;
   const homeSet = settings.home_base_lat != null || !!settings.home_base_address;
 
   const fyStart = financialYearStart();
@@ -254,16 +203,12 @@ export default function Mileage({ trips, customers, settings, onSaveTrip, onDele
   const sorted = useMemo(() => [...trips].sort((a, b) => b.trip_date.localeCompare(a.trip_date)), [trips]);
   const shown = showAll ? sorted : sorted.slice(0, RECENT_SHOWN);
 
-  const saveSettings = async (payload) => {
-    await onSaveSettings(payload);
-    setEditingSettings(false);
-  };
   const saveTrip = async (form) => {
     await onSaveTrip(form);
     setEditingTrip(null);
   };
   const removeTrip = async (form) => {
-    if (!confirm("Delete this trip?")) return;
+    if (!confirm("Archive this trip? It leaves the list but stays in the km log.")) return;
     await onDeleteTrip(form.id);
     setEditingTrip(null);
   };
@@ -272,7 +217,7 @@ export default function Mileage({ trips, customers, settings, onSaveTrip, onDele
     <div className="max-w-lg mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold text-slate-900">Mileage</h1>
-        <button onClick={() => setEditingSettings(true)} title="Home base & rate" className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+        <button onClick={onOpenSettings} title="Home base & rate live in Settings" className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
           <Settings size={18} />
         </button>
       </div>
@@ -294,7 +239,7 @@ export default function Mileage({ trips, customers, settings, onSaveTrip, onDele
         <Plus size={20} strokeWidth={2.5} /> Log a trip
       </Button>
       {!homeSet && (
-        <button onClick={() => setEditingSettings(true)} className="w-full text-center text-xs text-blue-600 hover:underline mb-4">
+        <button onClick={onOpenSettings} className="w-full text-center text-xs text-blue-600 hover:underline mb-4">
           Set your home base for auto distances
         </button>
       )}
@@ -332,7 +277,6 @@ export default function Mileage({ trips, customers, settings, onSaveTrip, onDele
 
       <p className="text-center text-[11px] text-slate-400 mt-5 px-2">Estimates only — confirm the rate and rules with your accountant.</p>
 
-      {editingSettings && <SettingsModal settings={settings} onCancel={() => setEditingSettings(false)} onSave={saveSettings} />}
       {editingTrip && (
         <TripModal
           initial={editingTrip}

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Receipt, Loader2, X, Trash2, CheckCircle2 } from "lucide-react";
+import { Plus, Receipt, Loader2, X, Archive, CheckCircle2, Eye } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
 import { formatDate, todayStr, addDays } from "../lib/dates";
+import InvoiceView from "./InvoiceView";
 
-function emptyInvoice(overrides = {}) {
-  return { customer_id: "", job_id: "", description: "", amount: "", issued_date: todayStr(), due_date: addDays(todayStr(), 14), status: "unpaid", ...overrides };
+function emptyInvoice(dueDays, overrides = {}) {
+  return { customer_id: "", job_id: "", description: "", amount: "", issued_date: todayStr(), due_date: addDays(todayStr(), dueDays), status: "unpaid", ...overrides };
 }
 
 function InvoiceForm({ initial, customers, jobs, onCancel, onSave, onDelete, saving }) {
@@ -55,8 +56,8 @@ function InvoiceForm({ initial, customers, jobs, onCancel, onSave, onDelete, sav
         </div>
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
           {isEdit && onDelete && (
-            <Button variant="danger" onClick={() => onDelete(form)} className="!px-3">
-              <Trash2 size={14} /> Delete
+            <Button variant="danger" onClick={() => onDelete(form)} className="!px-3" title="Hides it. The record is kept - invoices are tax records.">
+              <Archive size={14} /> Archive
             </Button>
           )}
           <div className="flex-1" />
@@ -70,15 +71,17 @@ function InvoiceForm({ initial, customers, jobs, onCancel, onSave, onDelete, sav
   );
 }
 
-export default function Invoices({ invoices, customers, jobs, onSave, onDelete, onMarkPaid, draft, onDraftConsumed }) {
+export default function Invoices({ invoices, customers, jobs, settings = {}, onSave, onDelete, onMarkPaid, draft, onDraftConsumed }) {
   const [filter, setFilter] = useState("all");
   const [editing, setEditing] = useState(null);
+  const [viewing, setViewing] = useState(null);
   const [saving, setSaving] = useState(false);
   const today = todayStr();
+  const dueDays = settings.invoice_due_days ?? 14;
 
   useEffect(() => {
     if (draft) {
-      setEditing(emptyInvoice(draft));
+      setEditing(emptyInvoice(dueDays, draft));
       onDraftConsumed();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,10 +125,16 @@ export default function Invoices({ invoices, customers, jobs, onSave, onDelete, 
           ))}
         </div>
         <div className="flex-1" />
-        <Button onClick={() => setEditing(emptyInvoice())} className="shrink-0" disabled={customers.length === 0}>
+        <Button onClick={() => setEditing(emptyInvoice(dueDays))} className="shrink-0" disabled={customers.length === 0}>
           <Plus size={16} strokeWidth={2.5} /> New invoice
         </Button>
       </div>
+
+      {!settings.abn && invoices.length > 0 && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3">
+          No ABN set - every invoice needs one. Add it under Settings → Business.
+        </p>
+      )}
 
       {visible.length === 0 ? (
         <EmptyState icon={Receipt} title="No invoices here yet." />
@@ -145,6 +154,9 @@ export default function Invoices({ invoices, customers, jobs, onSave, onDelete, 
                     <div className="text-xs text-slate-500 mt-0.5 truncate">{inv.description || "No description"} · due {formatDate(inv.due_date)}</div>
                   </button>
                   <div className="text-sm font-semibold tabular-nums text-slate-900 shrink-0">{money(inv.amount)}</div>
+                  <button title="View / print" onClick={() => setViewing(inv)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 shrink-0">
+                    <Eye size={17} />
+                  </button>
                   {inv.status === "unpaid" && (
                     <button title="Mark paid" onClick={() => onMarkPaid(inv)} className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50 shrink-0">
                       <CheckCircle2 size={17} />
@@ -165,7 +177,7 @@ export default function Invoices({ invoices, customers, jobs, onSave, onDelete, 
           onCancel={() => setEditing(null)}
           onSave={save}
           onDelete={async (inv) => {
-            if (!confirm("Delete this invoice?")) return;
+            if (!confirm("Archive this invoice? It leaves the list but stays on record.")) return;
             setSaving(true);
             try {
               await onDelete(inv.id);
@@ -177,6 +189,8 @@ export default function Invoices({ invoices, customers, jobs, onSave, onDelete, 
           saving={saving}
         />
       )}
+
+      {viewing && <InvoiceView invoice={viewing} customer={customerById(viewing.customer_id)} settings={settings} onClose={() => setViewing(null)} />}
     </div>
   );
 }

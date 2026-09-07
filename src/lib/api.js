@@ -28,27 +28,27 @@ export const submitPublicLead = (...a) => real.submitPublicLead(...a);
 // ---------------------------------------------------------------------------
 export const fetchCustomers = (...a) => impl().fetchCustomers(...a);
 export const upsertCustomer = (...a) => impl().upsertCustomer(...a);
-export const deleteCustomer = (...a) => impl().deleteCustomer(...a);
+export const archiveCustomer = (...a) => impl().archiveCustomer(...a);
 export const saveCustomerCoords = (...a) => impl().saveCustomerCoords(...a);
 
 export const fetchJobs = (...a) => impl().fetchJobs(...a);
 export const upsertJob = (...a) => impl().upsertJob(...a);
-export const deleteJob = (...a) => impl().deleteJob(...a);
+export const archiveJob = (...a) => impl().archiveJob(...a);
 export const completeJob = (...a) => impl().completeJob(...a);
 
 export const logAutoTrip = (...a) => impl().logAutoTrip(...a);
 export const logHeadingHome = (...a) => impl().logHeadingHome(...a);
 export const fetchTrips = (...a) => impl().fetchTrips(...a);
 export const upsertTrip = (...a) => impl().upsertTrip(...a);
-export const deleteTrip = (...a) => impl().deleteTrip(...a);
+export const archiveTrip = (...a) => impl().archiveTrip(...a);
 
 export const fetchQuotes = (...a) => impl().fetchQuotes(...a);
 export const upsertQuote = (...a) => impl().upsertQuote(...a);
-export const deleteQuote = (...a) => impl().deleteQuote(...a);
+export const archiveQuote = (...a) => impl().archiveQuote(...a);
 
 export const fetchInvoices = (...a) => impl().fetchInvoices(...a);
 export const upsertInvoice = (...a) => impl().upsertInvoice(...a);
-export const deleteInvoice = (...a) => impl().deleteInvoice(...a);
+export const archiveInvoice = (...a) => impl().archiveInvoice(...a);
 export const markInvoicePaid = (...a) => impl().markInvoicePaid(...a);
 
 export const fetchLeads = (...a) => impl().fetchLeads(...a);
@@ -57,7 +57,7 @@ export const deleteLead = (...a) => impl().deleteLead(...a);
 
 export const fetchExpenses = (...a) => impl().fetchExpenses(...a);
 export const upsertExpense = (...a) => impl().upsertExpense(...a);
-export const deleteExpense = (...a) => impl().deleteExpense(...a);
+export const archiveExpense = (...a) => impl().archiveExpense(...a);
 
 export const fetchRenewals = (...a) => impl().fetchRenewals(...a);
 export const upsertRenewal = (...a) => impl().upsertRenewal(...a);
@@ -68,5 +68,12 @@ export const saveSettings = (...a) => impl().saveSettings(...a);
 
 export const fetchCustomerNotes = (...a) => impl().fetchCustomerNotes(...a);
 export const addCustomerNote = (...a) => impl().addCustomerNote(...a);
+
+export const fetchActivity = (...a) => impl().fetchActivity(...a);
+export const logActivity = (...a) => impl().logActivity(...a);
+export const undoActivity = (...a) => impl().undoActivity(...a);
+
+export const uploadReceipt = (...a) => impl().uploadReceipt(...a);
+export const receiptUrl = (...a) => impl().receiptUrl(...a);
 
 export { resetDemoData } from "./demoApi";

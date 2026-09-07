@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, CalendarDays, Loader2, X, Check, Ban, Trash2, AlertTriangle, Receipt } from "lucide-react";
+import { Plus, CalendarDays, Loader2, X, Check, Ban, Archive, AlertTriangle, Receipt } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
 import { formatDate, todayStr, nextDueDate } from "../lib/dates";
 import { PRICE_GROUPS } from "../lib/pricing";
@@ -270,8 +270,8 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
                     </button>
                   )}
                   {j.status !== "scheduled" && (
-                    <button title="Delete" onClick={() => confirm("Delete this job?") && onDelete(j.id)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 shrink-0">
-                      <Trash2 size={16} />
+                    <button title="Archive - hides it, keeps the record" onClick={() => confirm("Archive this job? It stays in the records but leaves this list.") && onDelete(j.id)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 shrink-0">
+                      <Archive size={16} />
                     </button>
                   )}
                 </div>

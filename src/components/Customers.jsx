@@ -1,12 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Users, Loader2, Trash2, X, History } from "lucide-react";
+import { Search, Plus, Users, Loader2, Archive, X, History } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState } from "./ui";
-import { dueStatus, formatDate, nextDueDate, daysBetween, todayStr } from "../lib/dates";
-
-// A customer worth reaching out to again: not on a recurring schedule (so the
-// due-date system never resurfaces them), still active, and it's been a
-// while since the last job. Distinct from the recurring due/overdue list.
-const LAPSED_DAYS = 180;
+import { dueStatus, formatDate, nextDueDate } from "../lib/dates";
+import { customersLapsed } from "../lib/today";
 
 const FREQUENCY_OPTIONS = [
   { value: "", label: "One-off (not recurring)" },
@@ -91,8 +87,8 @@ function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
         </div>
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
           {isEdit && onDelete && (
-            <Button variant="danger" onClick={() => onDelete(form)} className="!px-3">
-              <Trash2 size={14} /> Delete
+            <Button variant="danger" onClick={() => onDelete(form)} className="!px-3" title="Hides them from every list. Jobs and invoices are kept - they're records.">
+              <Archive size={14} /> Archive
             </Button>
           )}
           <div className="flex-1" />
@@ -106,18 +102,13 @@ function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
   );
 }
 
-export default function Customers({ customers, jobs, customerNotes = [], onSave, onDelete, draft, onDraftConsumed }) {
+export default function Customers({ customers, jobs, customerNotes = [], onSave, onDelete, draft, onDraftConsumed, lapsedDays = 180, dueSoonDays = 7 }) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showLapsed, setShowLapsed] = useState(false);
 
-  const lapsed = useMemo(() => {
-    const today = todayStr();
-    return customers
-      .filter((c) => c.status === "active" && !c.frequency_weeks && c.last_service_date && daysBetween(c.last_service_date, today) >= LAPSED_DAYS)
-      .sort((a, b) => a.last_service_date.localeCompare(b.last_service_date)); // longest since serviced first
-  }, [customers]);
+  const lapsed = useMemo(() => customersLapsed(customers, lapsedDays), [customers, lapsedDays]);
 
   useEffect(() => {
     if (draft) {
@@ -152,7 +143,7 @@ export default function Customers({ customers, jobs, customerNotes = [], onSave,
   };
 
   const remove = async (form) => {
-    if (!confirm(`Delete ${form.name}? This also removes their jobs, quotes and invoices.`)) return;
+    if (!confirm(`Archive ${form.name}? They'll disappear from every list. Anything still booked is cancelled; their history and invoices are kept.`)) return;
     setSaving(true);
     try {
       await onDelete(form.id);
@@ -191,7 +182,7 @@ export default function Customers({ customers, jobs, customerNotes = [], onSave,
 
       {showLapsed && (
         <p className="text-xs text-slate-400 mb-3 px-1">
-          Active, one-off customers not serviced in {LAPSED_DAYS / 30}+ months — worth a call to see if they want another clean.
+          Active, one-off customers not serviced in {Math.round(lapsedDays / 30)}+ months — worth a call to see if they want another one.
         </p>
       )}
 
@@ -207,7 +198,7 @@ export default function Customers({ customers, jobs, customerNotes = [], onSave,
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => {
-            const status = dueStatus(c);
+            const status = dueStatus(c, { soonDays: dueSoonDays });
             const due = nextDueDate(c);
             return (
               <Card key={c.id} className="px-4 py-3 hover:border-blue-300 transition-colors cursor-pointer" >

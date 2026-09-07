@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { todayStr, addDays } from "./lib/dates";
+import { todayStr, addDays, formatDate } from "./lib/dates";
+import { liveRows } from "./lib/today";
 import { isDemoMode, setDemoMode } from "./lib/dataMode";
 import {
   getSession,
@@ -8,24 +9,24 @@ import {
   signOut,
   fetchCustomers,
   upsertCustomer,
-  deleteCustomer,
+  archiveCustomer,
   fetchJobs,
   upsertJob,
-  deleteJob,
+  archiveJob,
   completeJob,
   fetchQuotes,
   upsertQuote,
-  deleteQuote,
+  archiveQuote,
   fetchInvoices,
   upsertInvoice,
-  deleteInvoice,
+  archiveInvoice,
   markInvoicePaid as apiMarkInvoicePaid,
   fetchLeads,
   upsertLead,
   deleteLead,
   fetchExpenses,
   upsertExpense,
-  deleteExpense,
+  archiveExpense,
   fetchRenewals,
   upsertRenewal,
   deleteRenewal,
@@ -33,12 +34,15 @@ import {
   saveSettings,
   fetchTrips,
   upsertTrip,
-  deleteTrip,
+  archiveTrip,
   saveCustomerCoords,
   logAutoTrip,
   logHeadingHome,
   fetchCustomerNotes,
   addCustomerNote,
+  fetchActivity,
+  logActivity,
+  undoActivity,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
 import TodaySimple from "./components/TodaySimple";
@@ -48,6 +52,7 @@ import Schedule from "./components/Schedule";
 import Billing from "./components/Billing";
 import Leads from "./components/Leads";
 import Dev from "./components/Dev";
+import Settings from "./components/Settings";
 import Mileage from "./components/Mileage";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
@@ -113,6 +118,7 @@ export default function App() {
   const [renewals, setRenewals] = useState([]);
   const [trips, setTrips] = useState([]);
   const [customerNotes, setCustomerNotes] = useState([]);
+  const [activity, setActivity] = useState([]);
   const [settings, setSettings] = useState({
     home_base_address: null,
     home_base_lat: null,
@@ -154,6 +160,7 @@ export default function App() {
     trips: [fetchTrips, setTrips],
     settings: [fetchSettings, setSettings],
     customerNotes: [fetchCustomerNotes, setCustomerNotes],
+    activity: [fetchActivity, setActivity],
   };
 
   const reload = async (only) => {
@@ -199,6 +206,7 @@ export default function App() {
     setRenewals([]);
     setTrips([]);
     setCustomerNotes([]);
+    setActivity([]);
     setView("dashboard");
     setMode("simple");
   };
@@ -217,9 +225,10 @@ export default function App() {
     await upsertCustomer(c);
     await reload();
   };
+  // Archive, never delete - records leave the screen, not the books.
   const removeCustomer = async (id) => {
-    await deleteCustomer(id);
-    await reload();
+    await archiveCustomer(id);
+    await reload(["customers", "jobs", "quotes"]);
   };
 
   // ---- Jobs ----
@@ -235,12 +244,12 @@ export default function App() {
   const completeJobAndReload = async (j, paidNow) => {
     try {
       const pos = currentPosition(trips, customers, settings);
-      await completeJob(j, { paidNow });
+      await completeJob(j, { paidNow, dueDays: settings.invoice_due_days });
       const customer = customers.find((c) => c.id === j.customer_id);
       // The trip logs in the background; trips refresh once it's had a chance
       // to land rather than racing it.
       if (customer) logAutoTrip(pos, customer, j.job_type).then(() => reload(["trips"])).catch(() => {});
-      await reload(["jobs", "customers", "invoices"]);
+      await reload(["jobs", "customers", "invoices", "activity"]);
     } catch (e) {
       notifyError("Couldn't mark that job done - check your connection and try again.");
       throw e;
@@ -262,15 +271,36 @@ export default function App() {
   const cancelJob = async (j) => {
     try {
       await upsertJob({ ...j, status: "cancelled" });
-      await reload(["jobs"]);
+      const c = customers.find((x) => x.id === j.customer_id);
+      await logActivity({ kind: "job_cancelled", summary: `Cancelled ${c?.name || "a"} job for ${formatDate(j.scheduled_date)}`, customer_id: j.customer_id, ref_table: "jobs", ref_id: j.id }).catch(() => {});
+      await reload(["jobs", "activity"]);
     } catch (e) {
       notifyError("Couldn't cancel that job - check your connection and try again.");
       throw e;
     }
   };
+  const rescheduleJob = async (j, date) => {
+    try {
+      await upsertJob({ ...j, scheduled_date: date, route_order: null });
+      const c = customers.find((x) => x.id === j.customer_id);
+      await logActivity({ kind: "job_rescheduled", summary: `Moved ${c?.name || "a"} job to ${formatDate(date)}`, customer_id: j.customer_id, ref_table: "jobs", ref_id: j.id }).catch(() => {});
+      await reload(["jobs", "activity"]);
+    } catch (e) {
+      notifyError("Couldn't move that job - check your connection and try again.");
+      throw e;
+    }
+  };
+  const undoActivityItem = async (item) => {
+    try {
+      await undoActivity(item.id);
+      await reload(["jobs", "customers", "invoices", "activity"]);
+    } catch (e) {
+      notifyError(e?.message || "Couldn't undo that.");
+    }
+  };
   const removeJob = async (id) => {
-    await deleteJob(id);
-    await reload();
+    await archiveJob(id);
+    await reload(["jobs"]);
   };
 
   // ---- Quotes ----
@@ -279,8 +309,8 @@ export default function App() {
     await reload();
   };
   const removeQuote = async (id) => {
-    await deleteQuote(id);
-    await reload();
+    await archiveQuote(id);
+    await reload(["quotes"]);
   };
 
   // ---- Invoices ----
@@ -289,8 +319,8 @@ export default function App() {
     await reload();
   };
   const removeInvoice = async (id) => {
-    await deleteInvoice(id);
-    await reload();
+    await archiveInvoice(id);
+    await reload(["invoices"]);
   };
   const markPaid = async (inv) => {
     await apiMarkInvoicePaid(inv.id);
@@ -303,8 +333,8 @@ export default function App() {
     await reload();
   };
   const removeExpense = async (id) => {
-    await deleteExpense(id);
-    await reload();
+    await archiveExpense(id);
+    await reload(["expenses"]);
   };
 
   // ---- Renewals ----
@@ -323,8 +353,8 @@ export default function App() {
     await reload();
   };
   const removeTrip = async (id) => {
-    await deleteTrip(id);
-    await reload();
+    await archiveTrip(id);
+    await reload(["trips"]);
   };
   const saveMileageSettings = async (s) => {
     try {
@@ -419,6 +449,16 @@ export default function App() {
 
   const newLeadCount = leads.filter((l) => l.status === "new").length;
 
+  // Screens see only live rows. The raw arrays - archived included - go to
+  // Settings for the tax pack: archiving hides a record from the screen and
+  // never from the books.
+  const liveCustomers = liveRows(customers);
+  const liveJobs = liveRows(jobs);
+  const liveQuotes = liveRows(quotes);
+  const liveInvoices = liveRows(invoices);
+  const liveExpenses = liveRows(expenses);
+  const liveTrips = liveRows(trips);
+
   // Public booking page - this is the default for every path except /team,
   // so the homepage itself is the "just let me book something" experience.
   const pathname = typeof window !== "undefined" ? window.location.pathname.replace(/\/+$/, "") || "/" : "/";
@@ -464,15 +504,17 @@ export default function App() {
     return (
       <>
         <TodaySimple
-          jobs={jobs}
-        customers={customers}
+          jobs={liveJobs}
+        customers={liveCustomers}
         customerNotes={customerNotes}
+        activity={activity}
+        onUndoActivity={undoActivityItem}
         checklist={settings.packing_checklist || []}
         typeChecklists={settings.type_checklists || {}}
         onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
         onComplete={completeJobAndReload}
         onSaveJob={saveJob}
-        onReschedule={(job, date) => saveJob({ ...job, scheduled_date: date })}
+        onReschedule={rescheduleJob}
         onCancelJob={cancelJob}
         onHeadingHome={headingHome}
         hasLoggedTripToday={trips.some((t) => t.trip_date === todayStr())}
@@ -483,7 +525,7 @@ export default function App() {
         homeBaseLng={settings.home_base_lng}
         dayStartedToday={settings.day_started_date === todayStr()}
         onStartDay={() => saveMileageSettings({ day_started_date: todayStr() })}
-        invoices={invoices}
+        invoices={liveInvoices}
         leads={leads}
         demoMode={demoMode}
         onEnterDemo={() => toggleDemoMode(true)}
@@ -505,28 +547,29 @@ export default function App() {
 
       {view === "dashboard" && (
         <Dashboard
-          customers={customers}
-          jobs={jobs}
-          invoices={invoices}
+          customers={liveCustomers}
+          jobs={liveJobs}
+          invoices={liveInvoices}
           leads={leads}
-          expenses={expenses}
+          expenses={liveExpenses}
           renewals={renewals}
-          trips={trips}
+          trips={liveTrips}
+          settings={settings}
           setView={setView}
           onScheduleCustomer={scheduleForCustomer}
           onMarkPaid={markPaid}
           onSaveRenewal={saveRenewal}
           onDeleteRenewal={removeRenewal}
-          typeChecklists={settings.type_checklists || {}}
-          onSaveTypeChecklist={(type, items) => saveMileageSettings({ type_checklists: { ...settings.type_checklists, [type]: items } })}
         />
       )}
 
       {view === "customers" && (
         <Customers
-          customers={customers}
-          jobs={jobs}
+          customers={liveCustomers}
+          jobs={liveJobs}
           customerNotes={customerNotes}
+          lapsedDays={settings.lapsed_days ?? 180}
+          dueSoonDays={settings.due_soon_days ?? 7}
           onSave={saveCustomer}
           onDelete={removeCustomer}
           draft={customerDraft}
@@ -536,8 +579,8 @@ export default function App() {
 
       {view === "schedule" && (
         <Schedule
-          customers={customers}
-          jobs={jobs}
+          customers={liveCustomers}
+          jobs={liveJobs}
           onSave={saveJob}
           onComplete={completeJobAndReload}
           onCancelJob={cancelJob}
@@ -554,11 +597,12 @@ export default function App() {
 
       {view === "billing" && (
         <Billing
-          quotes={quotes}
-          invoices={invoices}
-          expenses={expenses}
-          customers={customers}
-          jobs={jobs}
+          quotes={liveQuotes}
+          invoices={liveInvoices}
+          expenses={liveExpenses}
+          customers={liveCustomers}
+          jobs={liveJobs}
+          settings={settings}
           onSaveQuote={saveQuote}
           onDeleteQuote={removeQuote}
           onSaveInvoice={saveInvoice}
@@ -581,13 +625,28 @@ export default function App() {
 
       {view === "mileage" && (
         <Mileage
-          trips={trips}
-          customers={customers}
+          trips={liveTrips}
+          customers={liveCustomers}
           settings={settings}
           onSaveTrip={saveTrip}
           onDeleteTrip={removeTrip}
-          onSaveSettings={saveMileageSettings}
+          onOpenSettings={() => setView("settings")}
           onCacheCoords={cacheCustomerCoords}
+        />
+      )}
+
+      {view === "settings" && (
+        <Settings
+          settings={settings}
+          onSave={saveMileageSettings}
+          customers={customers}
+          invoices={invoices}
+          expenses={expenses}
+          trips={trips}
+          onOpenDev={() => setView("dev")}
+          onOpenPublicPage={() => setView("customerpage")}
+          demoMode={demoMode}
+          onToggleDemo={toggleDemoMode}
         />
       )}
 

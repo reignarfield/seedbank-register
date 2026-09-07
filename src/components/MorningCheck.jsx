@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { CheckSquare, Square, MessageCircle, Pencil } from "lucide-react";
 import { Card } from "./ui";
-import { todayStr, addDays, formatDate } from "../lib/dates";
+import { todayStr, formatDate } from "../lib/dates";
 import EditChecklistModal from "./EditChecklistModal";
+import { jobsToday, jobsTomorrow } from "../lib/today";
 
 const cleanPhone = (p) => (p || "").replace(/[^0-9+]/g, "");
 
@@ -32,11 +33,10 @@ export default function MorningCheck({ jobs, customers, checklist, baseChecklist
   const [editing, setEditing] = useState(false);
 
   const today = todayStr();
-  const tomorrow = addDays(today, 1);
   const customerById = (id) => customers.find((c) => c.id === id);
 
-  const todaysJobs = useMemo(() => jobs.filter((j) => j.status === "scheduled" && j.scheduled_date === today), [jobs, today]);
-  const tomorrowsJobs = useMemo(() => jobs.filter((j) => j.status === "scheduled" && j.scheduled_date === tomorrow), [jobs, tomorrow]);
+  const todaysJobs = useMemo(() => jobsToday(jobs, today), [jobs, today]);
+  const tomorrowsJobs = useMemo(() => jobsTomorrow(jobs, today), [jobs, today]);
 
   const toggle = (item) =>
     setChecked((prev) => {

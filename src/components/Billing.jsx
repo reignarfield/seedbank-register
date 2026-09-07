@@ -9,6 +9,7 @@ export default function Billing({
   expenses,
   customers,
   jobs,
+  settings,
   onSaveQuote,
   onDeleteQuote,
   onSaveInvoice,
@@ -69,6 +70,7 @@ export default function Billing({
           invoices={invoices}
           customers={customers}
           jobs={jobs}
+          settings={settings}
           onSave={onSaveInvoice}
           onDelete={onDeleteInvoice}
           onMarkPaid={onMarkInvoicePaid}
@@ -76,7 +78,7 @@ export default function Billing({
           onDraftConsumed={onInvoiceDraftConsumed}
         />
       )}
-      {tab === "expenses" && <Expenses expenses={expenses} onSave={onSaveExpense} onDelete={onDeleteExpense} />}
+      {tab === "expenses" && <Expenses expenses={expenses} settings={settings} onSave={onSaveExpense} onDelete={onDeleteExpense} />}
     </div>
   );
 }

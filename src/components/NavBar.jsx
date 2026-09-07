@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Globe, Wrench, LogOut, Zap, FlaskConical } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Settings as SettingsIcon, LogOut, Zap, FlaskConical } from "lucide-react";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -8,9 +8,11 @@ const TABS = [
   { id: "billing", label: "Billing", icon: Receipt },
   { id: "mileage", label: "Mileage", icon: Car },
   { id: "leads", label: "Leads", icon: Inbox },
-  { id: "customerpage", label: "Customer Page", icon: Globe },
-  { id: "dev", label: "Dev", icon: Wrench },
+  { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
+// The public-page preview, changelog and Journey walkthrough are builder
+// tools, not part of running the business - they live under Settings now
+// rather than taking two of the tabs a sole trader sees every day.
 
 export default function NavBar({ view, setView, onGoSimple, onLogout, leadBadge, demoMode, onEnterDemo, onExitDemo }) {
   return (

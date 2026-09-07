@@ -91,14 +91,14 @@ export async function deleteJob(id) {
 // here, not the database, because only the app knows this trade's word for
 // what it does - a job scheduled from an accepted quote carries the quote's
 // description in job.notes and that wins.
-export async function completeJob(job, { paidNow } = {}) {
+export async function completeJob(job, { paidNow, dueDays } = {}) {
   const price = job.price != null && Number(job.price) > 0 ? Number(job.price) : null;
   const { data, error } = await supabase.rpc("complete_job", {
     p_job_id: job.id,
     p_price: price,
     p_paid_now: !!paidNow,
     p_description: job.notes || `${cap(BUSINESS.vocab.service)} — ${job.scheduled_date}`,
-    p_due_days: BUSINESS.invoiceDueDays,
+    p_due_days: dueDays ?? BUSINESS.invoiceDueDays,
   });
   if (error) throw error;
   return data;
@@ -272,17 +272,28 @@ const DEFAULT_CHECKLIST = ["Squeegees", "Extension pole", "Towels / cloths", "Sc
 export async function fetchSettings() {
   const { data, error } = await supabase.from("settings").select("*").eq("id", true).maybeSingle();
   if (error) throw error;
-  return (
-    data || {
-      id: true,
-      home_base_address: null,
-      home_base_lat: null,
-      home_base_lng: null,
-      mileage_rate_cents: 88,
-      packing_checklist: DEFAULT_CHECKLIST,
-    }
-  );
+  return data || DEFAULT_SETTINGS;
 }
+
+// The shape a brand-new project starts with, and what every screen can rely
+// on being present. Real values come from the settings row once it exists.
+export const DEFAULT_SETTINGS = {
+  id: true,
+  home_base_address: null,
+  home_base_lat: null,
+  home_base_lng: null,
+  mileage_rate_cents: BUSINESS.mileageRateCents,
+  packing_checklist: DEFAULT_CHECKLIST,
+  type_checklists: {},
+  day_started_date: null,
+  invoice_due_days: BUSINESS.invoiceDueDays,
+  gst_registered: false,
+  abn: null,
+  lapsed_days: 180,
+  renewal_lead_days: 30,
+  due_soon_days: 7,
+  reminders: { owner_digest: true, due_soon: false, invoice_overdue: false, job_confirmation: false, review_request: false },
+};
 
 export async function saveSettings(settings) {
   const { data, error } = await supabase.from("settings").upsert({ ...settings, id: true }, { onConflict: "id" }).select().single();
@@ -331,4 +342,73 @@ export async function addCustomerNote(customerId, note) {
   const { data, error } = await supabase.from("customer_notes").insert({ customer_id: customerId, note }).select().single();
   if (error) throw error;
   return data;
+}
+
+// ---------------------------------------------------------------------------
+// Archive, never delete. Invoices, expenses and the km log are tax records
+// with a five-year retention rule; customers and jobs are what those records
+// hang off. Archiving hides a row from every list and keeps it in every total.
+// ---------------------------------------------------------------------------
+async function archiveRow(table, id) {
+  const { error } = await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+export const archiveJob = (id) => archiveRow("jobs", id);
+export const archiveQuote = (id) => archiveRow("quotes", id);
+export const archiveInvoice = (id) => archiveRow("invoices", id);
+export const archiveExpense = (id) => archiveRow("expenses", id);
+export const archiveTrip = (id) => archiveRow("trips", id);
+
+// Archiving a customer also archives anything still open for them - booked
+// jobs, unsent or sent quotes - so nothing keeps showing up on Today for
+// someone who's gone. Completed jobs and invoices stay exactly as they are.
+export async function archiveCustomer(id) {
+  const now = new Date().toISOString();
+  const [{ error: e1 }, { error: e2 }, { error: e3 }] = await Promise.all([
+    supabase.from("jobs").update({ archived_at: now }).eq("customer_id", id).eq("status", "scheduled").is("archived_at", null),
+    supabase.from("quotes").update({ archived_at: now }).eq("customer_id", id).in("status", ["draft", "sent"]).is("archived_at", null),
+    supabase.from("customers").update({ archived_at: now }).eq("id", id),
+  ]);
+  const error = e1 || e2 || e3;
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Activity log - what the app did, so it can be seen and reversed
+// ---------------------------------------------------------------------------
+export async function fetchActivity() {
+  const { data, error } = await supabase.from("activity").select("*").order("occurred_at", { ascending: false }).limit(200);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function logActivity({ kind, summary, customer_id = null, ref_table = null, ref_id = null, actor = "user", undo = null }) {
+  const { data, error } = await supabase.from("activity").insert({ kind, summary, customer_id, ref_table, ref_id, actor, undo }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function undoActivity(id) {
+  const { data, error } = await supabase.rpc("undo_activity", { p_activity_id: id });
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Receipt photos - a private bucket; paths are stored on the expense and
+// turned into short-lived signed URLs to view.
+// ---------------------------------------------------------------------------
+export async function uploadReceipt(file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${todayStr().slice(0, 7)}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from("receipts").upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+export async function receiptUrl(path) {
+  if (!path) return null;
+  const { data, error } = await supabase.storage.from("receipts").createSignedUrl(path, 60 * 60);
+  if (error) throw error;
+  return data.signedUrl;
 }

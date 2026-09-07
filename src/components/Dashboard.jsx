@@ -1,53 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { AlertCircle, CalendarClock, CalendarDays, Car, Inbox, Receipt, ShieldAlert, TrendingUp, Users, Plus, Loader2, ClipboardList, X } from "lucide-react";
+import { AlertCircle, CalendarClock, CalendarDays, Car, Inbox, Receipt, ShieldAlert, TrendingUp, Users, Plus, Loader2 } from "lucide-react";
 import { Card, SectionTitle, StatusPill, EmptyState, money, Button, TextInput, Field } from "./ui";
-import { dueStatus, formatDate, todayStr, daysBetween, financialYearStart } from "../lib/dates";
-import { PRICE_GROUPS } from "../lib/pricing";
-import EditChecklistModal from "./EditChecklistModal";
-
-const RENEWAL_LEAD_DAYS = 30;
-
-// Rare, sit-down setup - not a daily action - so it's tucked behind one
-// button rather than taking a permanent spot in the live-action grid below.
-function KitListsModal({ typeChecklists, onSaveType, onClose }) {
-  const [editingType, setEditingType] = useState(null);
-  return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/30 px-4 py-6 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-lg text-slate-900">Kit lists</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
-        </div>
-        <div className="px-5 py-2">
-          {PRICE_GROUPS.map((g) => {
-            const count = (typeChecklists[g.title] || []).length;
-            return (
-              <div key={g.title} className="flex items-center justify-between gap-3 py-2.5 border-b border-slate-50 last:border-0">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">{g.title}</div>
-                  <div className="text-xs text-slate-400">{count === 0 ? "No extra items" : `${count} item${count === 1 ? "" : "s"}`}</div>
-                </div>
-                <button onClick={() => setEditingType(g.title)} className="text-xs font-medium text-blue-600 hover:underline shrink-0">Edit</button>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-xs text-slate-400 px-5 pb-4 pt-1">On top of the everyday checklist - a type's extra items only show on Today when a job of that type is booked.</p>
-      </div>
-      {editingType && (
-        <EditChecklistModal
-          title={editingType}
-          items={typeChecklists[editingType] || []}
-          onCancel={() => setEditingType(null)}
-          onSave={async (items) => {
-            await onSaveType(editingType, items);
-            setEditingType(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}
+import { formatDate, todayStr, financialYearStart } from "../lib/dates";
+import { customersDue, jobsUpcoming, invoicesOverdue, invoicesUnpaid, leadsNew, renewalsUpcoming } from "../lib/today";
 
 function RenewalQuickAdd({ onSave, onCancel }) {
   const [name, setName] = useState("");
@@ -120,37 +75,18 @@ export default function Dashboard({
   onMarkPaid,
   onSaveRenewal,
   onDeleteRenewal,
-  typeChecklists = {},
-  onSaveTypeChecklist,
+  settings = {},
 }) {
   const today = todayStr();
   const [addingRenewal, setAddingRenewal] = useState(false);
-  const [showKitLists, setShowKitLists] = useState(false);
 
-  const attention = useMemo(() => {
-    return customers
-      .filter((c) => c.status === "active")
-      .map((c) => ({ customer: c, status: dueStatus(c) }))
-      .filter((x) => x.status === "overdue" || x.status === "due_soon")
-      .sort((a, b) => (a.status === b.status ? 0 : a.status === "overdue" ? -1 : 1));
-  }, [customers]);
-
-  const upcomingJobs = useMemo(
-    () =>
-      jobs
-        .filter((j) => j.status === "scheduled" && daysBetween(today, j.scheduled_date) >= 0 && daysBetween(today, j.scheduled_date) <= 7)
-        .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)),
-    [jobs, today]
-  );
-
-  const overdueInvoices = useMemo(
-    () => invoices.filter((i) => i.status === "unpaid" && i.due_date < today).sort((a, b) => a.due_date.localeCompare(b.due_date)),
-    [invoices, today]
-  );
-
-  const unpaidTotal = useMemo(() => invoices.filter((i) => i.status === "unpaid").reduce((sum, i) => sum + Number(i.amount || 0), 0), [invoices]);
-
-  const newLeads = useMemo(() => leads.filter((l) => l.status === "new"), [leads]);
+  // Every list here uses the same definitions Today uses (lib/today.js), with
+  // the windows - "due soon", renewal warning - coming from Settings.
+  const attention = useMemo(() => customersDue(customers, settings.due_soon_days ?? 7), [customers, settings.due_soon_days]);
+  const upcomingJobs = useMemo(() => jobsUpcoming(jobs, 7, today), [jobs, today]);
+  const overdueInvoices = useMemo(() => invoicesOverdue(invoices, today), [invoices, today]);
+  const unpaidTotal = useMemo(() => invoicesUnpaid(invoices).reduce((sum, i) => sum + Number(i.amount || 0), 0), [invoices]);
+  const newLeads = useMemo(() => leadsNew(leads), [leads]);
 
   const thisMonth = today.slice(0, 7);
   const profitThisMonth = useMemo(() => {
@@ -159,10 +95,8 @@ export default function Dashboard({
     return { income, spent, net: income - spent };
   }, [invoices, expenses, thisMonth]);
 
-  const upcomingRenewals = useMemo(
-    () => [...renewals].filter((r) => daysBetween(today, r.due_date) <= RENEWAL_LEAD_DAYS).sort((a, b) => a.due_date.localeCompare(b.due_date)),
-    [renewals, today]
-  );
+  const renewalLead = settings.renewal_lead_days ?? 30;
+  const upcomingRenewals = useMemo(() => renewalsUpcoming(renewals, renewalLead, today), [renewals, renewalLead, today]);
 
   const fyKm = useMemo(() => {
     const fyStart = financialYearStart();
@@ -173,22 +107,10 @@ export default function Dashboard({
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-1">What needs your attention today.</p>
-        </div>
-        <button
-          onClick={() => setShowKitLists(true)}
-          className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-700 border border-slate-200 rounded-full px-3 py-1.5 shrink-0"
-        >
-          <ClipboardList size={13} /> Kit lists
-        </button>
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
+        <p className="text-sm text-slate-500 mt-1">What needs your attention today.</p>
       </div>
-
-      {showKitLists && (
-        <KitListsModal typeChecklists={typeChecklists} onSaveType={onSaveTypeChecklist} onClose={() => setShowKitLists(false)} />
-      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <StatCard icon={CalendarDays} label="Jobs this week" value={upcomingJobs.length} />
@@ -314,7 +236,7 @@ export default function Dashboard({
           </SectionTitle>
           {addingRenewal && <RenewalQuickAdd onSave={onSaveRenewal} onCancel={() => setAddingRenewal(false)} />}
           {upcomingRenewals.length === 0 ? (
-            <EmptyState icon={ShieldAlert} title="Nothing due in the next 30 days." subtitle="Insurance, licences, anything with a renewal date." />
+            <EmptyState icon={ShieldAlert} title={`Nothing due in the next ${renewalLead} days.`} subtitle="Insurance, licences, anything with a renewal date." />
           ) : (
             <div className="space-y-2">
               {upcomingRenewals.map((r) => {

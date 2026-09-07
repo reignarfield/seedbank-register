@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, FileText, Loader2, X, Trash2, Send, ThumbsUp, ThumbsDown, CalendarPlus, UserPlus } from "lucide-react";
+import { Plus, FileText, Loader2, X, Archive, Send, ThumbsUp, ThumbsDown, CalendarPlus, UserPlus } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
 import { formatDate, todayStr } from "../lib/dates";
 
@@ -72,7 +72,7 @@ function QuoteForm({ initial, customers, onCancel, onSave, onDelete, saving }) {
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
           {isEdit && onDelete && (
             <Button variant="danger" onClick={() => onDelete(form)} className="!px-3">
-              <Trash2 size={14} /> Delete
+              <Archive size={14} /> Archive
             </Button>
           )}
           <div className="flex-1" />
@@ -209,7 +209,7 @@ export default function Quotes({ quotes, customers, onSave, onDelete, onSchedule
           onCancel={() => setEditing(null)}
           onSave={save}
           onDelete={async (q) => {
-            if (!confirm("Delete this quote?")) return;
+            if (!confirm("Archive this quote? It leaves the list but stays on record.")) return;
             setSaving(true);
             try {
               await onDelete(q.id);

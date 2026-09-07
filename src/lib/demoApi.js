@@ -96,9 +96,22 @@ function seed() {
       "Solar Panel Cleaning": ["Soft brush head", "Deionised water tank"],
     },
     day_started_date: null,
+    invoice_due_days: 14,
+    gst_registered: false,
+    abn: "55 202 207 046",
+    lapsed_days: 180,
+    renewal_lead_days: 30,
+    due_soon_days: 7,
+    reminders: { owner_digest: true, due_soon: false, invoice_overdue: false, job_confirmation: false, review_request: false },
   };
 
-  return { customers, jobs, quotes, invoices, leads, expenses, renewals, trips, customerNotes, settings };
+  // What the app did recently, so the feed has something to show.
+  const activity = [
+    { id: "da1", occurred_at: new Date(Date.now() - 3600000 * 26).toISOString(), kind: "job_completed", summary: "Marked Priya Raman done and raised a $70.00 invoice, due in 14 days", actor: "app", customer_id: "dc3", ref_table: "jobs", ref_id: "dj7", undo: { invoice_id: "di2", prev_last_service_date: null, prev_status: "scheduled" }, undone_at: null },
+    { id: "da2", occurred_at: new Date(Date.now() - 3600000 * 25).toISOString(), kind: "trip_logged", summary: "Logged 8.4 km to Priya Raman", actor: "app", customer_id: "dc3", ref_table: "trips", ref_id: "dt1", undo: null, undone_at: null },
+  ];
+
+  return { customers, jobs, quotes, invoices, leads, expenses, renewals, trips, customerNotes, settings, activity };
 }
 
 let db = seed();
@@ -142,7 +155,10 @@ export const upsertJob = async (j) => {
 export const deleteJob = async (id) => {
   db.jobs = db.jobs.filter((j) => j.id !== id);
 };
-export const completeJob = async (job, { paidNow } = {}) => {
+export const completeJob = async (job, { paidNow, dueDays } = {}) => {
+  const due = dueDays ?? BUSINESS.invoiceDueDays;
+  const prevLast = db.customers.find((c) => c.id === job.customer_id)?.last_service_date ?? null;
+  let invoiceId = null;
   const price = job.price != null && Number(job.price) > 0 ? Number(job.price) : null;
   db.jobs = db.jobs.map((x) =>
     x.id === job.id ? { ...x, status: "completed", completed_at: new Date().toISOString(), ...(price != null ? { price } : {}) } : x
@@ -150,21 +166,41 @@ export const completeJob = async (job, { paidNow } = {}) => {
   const updated = db.jobs.find((x) => x.id === job.id);
   db.customers = db.customers.map((c) => (c.id === job.customer_id ? { ...c, last_service_date: job.scheduled_date } : c));
   if (price != null) {
+    invoiceId = uid("di");
     db.invoices = [
       ...db.invoices,
       {
-        id: uid("di"),
+        id: invoiceId,
         customer_id: job.customer_id,
         job_id: job.id,
         description: updated.notes || `${cap(BUSINESS.vocab.service)} — ${job.scheduled_date}`,
         amount: price,
         status: paidNow ? "paid" : "unpaid",
         issued_date: todayStr(),
-        due_date: addDays(todayStr(), BUSINESS.invoiceDueDays),
+        due_date: addDays(todayStr(), due),
         paid_date: paidNow ? todayStr() : null,
       },
     ];
   }
+  // Mirrors what the real complete_job function writes, undo payload included.
+  const cust = db.customers.find((c) => c.id === job.customer_id);
+  db.activity = [
+    {
+      id: uid("da"),
+      occurred_at: new Date().toISOString(),
+      kind: "job_completed",
+      actor: "app",
+      customer_id: job.customer_id,
+      ref_table: "jobs",
+      ref_id: job.id,
+      summary:
+        `Marked ${cust?.name || "a job"} done` +
+        (invoiceId ? ` and raised a $${price.toFixed(2)} invoice` + (paidNow ? ", paid on the spot" : `, due in ${due} days`) : " (no price, so no invoice)"),
+      undo: { invoice_id: invoiceId, prev_last_service_date: prevLast, prev_status: "scheduled" },
+      undone_at: null,
+    },
+    ...db.activity,
+  ];
   return updated;
 };
 
@@ -304,3 +340,51 @@ export const addCustomerNote = async (customerId, note) => {
   return created;
 };
 
+
+// ---- Archive (never delete) ----
+const archiveIn = (key, id) => { db[key] = db[key].map((r) => (r.id === id ? { ...r, archived_at: new Date().toISOString() } : r)); };
+export const archiveJob = async (id) => archiveIn("jobs", id);
+export const archiveQuote = async (id) => archiveIn("quotes", id);
+export const archiveInvoice = async (id) => archiveIn("invoices", id);
+export const archiveExpense = async (id) => archiveIn("expenses", id);
+export const archiveTrip = async (id) => archiveIn("trips", id);
+export const archiveCustomer = async (id) => {
+  const now = new Date().toISOString();
+  db.jobs = db.jobs.map((j) => (j.customer_id === id && j.status === "scheduled" && !j.archived_at ? { ...j, archived_at: now } : j));
+  db.quotes = db.quotes.map((q) => (q.customer_id === id && ["draft", "sent"].includes(q.status) && !q.archived_at ? { ...q, archived_at: now } : q));
+  archiveIn("customers", id);
+};
+
+// ---- Activity ----
+export const fetchActivity = async () => [...db.activity].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+export const logActivity = async ({ kind, summary, customer_id = null, ref_table = null, ref_id = null, actor = "user", undo = null }) => {
+  const created = { id: uid("da"), occurred_at: new Date().toISOString(), kind, summary, customer_id, ref_table, ref_id, actor, undo, undone_at: null };
+  db.activity = [created, ...db.activity];
+  return created;
+};
+export const undoActivity = async (id) => {
+  const act = db.activity.find((a) => a.id === id);
+  if (!act) throw new Error("activity not found");
+  if (act.undone_at) throw new Error("already undone");
+  if (!act.undo) throw new Error("this action cannot be undone");
+  if (act.kind === "job_completed") {
+    const inv = act.undo.invoice_id ? db.invoices.find((i) => i.id === act.undo.invoice_id) : null;
+    if (inv && inv.status === "paid") throw new Error("That invoice has been marked paid - unmark it first if this really needs undoing.");
+    if (inv) db.invoices = db.invoices.filter((i) => i.id !== inv.id);
+    db.jobs = db.jobs.map((j) => (j.id === act.ref_id ? { ...j, status: "scheduled", completed_at: null } : j));
+    db.customers = db.customers.map((c) => (c.id === act.customer_id ? { ...c, last_service_date: act.undo.prev_last_service_date } : c));
+  } else {
+    throw new Error("no undo handler for " + act.kind);
+  }
+  db.activity = db.activity.map((a) => (a.id === id ? { ...a, undone_at: new Date().toISOString() } : a));
+  return db.activity.find((a) => a.id === id);
+};
+
+// ---- Receipts (held as object URLs for the life of the page) ----
+const receiptStore = new Map();
+export const uploadReceipt = async (file) => {
+  const path = `demo/${uid("r")}`;
+  receiptStore.set(path, URL.createObjectURL(file));
+  return path;
+};
+export const receiptUrl = async (path) => (path ? receiptStore.get(path) || null : null);

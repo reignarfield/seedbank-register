@@ -28,6 +28,8 @@ import { Card, Button, EmptyState, TextInput, TextArea, money } from "./ui";
 import { todayStr, addDays, formatDate } from "../lib/dates";
 import { fetchRainChance } from "../lib/weather";
 import MorningCheck from "./MorningCheck";
+import { ActivityTodayLine } from "./ActivityFeed";
+import { jobsToday, jobsOverdue, jobsCompletedToday, invoicesOverdue, leadsNew } from "../lib/today";
 import { CompleteNoPricePrompt, JobForm } from "./Schedule";
 
 const cleanPhone = (p) => (p || "").replace(/[^0-9+]/g, "");
@@ -266,6 +268,8 @@ export default function TodaySimple({
   jobs,
   customers,
   customerNotes = [],
+  activity = [],
+  onUndoActivity,
   checklist,
   typeChecklists = {},
   onSaveChecklist,
@@ -312,27 +316,10 @@ export default function TodaySimple({
     }
   }, [homeBaseLat, homeBaseLng]);
 
-  const todaysJobsRaw = useMemo(
-    () => jobs.filter((j) => j.status === "scheduled" && j.scheduled_date === today),
-    [jobs, today]
-  );
-  // Display order only - a planning aid. Falls back to the incoming order
-  // (by scheduled_date/id) for jobs never manually reordered.
-  const todaysJobs = useMemo(() => {
-    return [...todaysJobsRaw].sort((a, b) => {
-      const ao = a.route_order ?? Number.MAX_SAFE_INTEGER;
-      const bo = b.route_order ?? Number.MAX_SAFE_INTEGER;
-      return ao - bo;
-    });
-  }, [todaysJobsRaw]);
-
-  // Jobs from before today that never got marked done - previously these
-  // only surfaced as "Overdue to complete" in the full Schedule tab, easy
-  // to lose track of since Today never mentioned them.
-  const overdueJobs = useMemo(
-    () => jobs.filter((j) => j.status === "scheduled" && j.scheduled_date < today).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)),
-    [jobs, today]
-  );
+  // What "today", "overdue" and "done today" mean is defined once, in
+  // lib/today.js, and shared with the Dashboard and the morning card.
+  const todaysJobs = useMemo(() => jobsToday(jobs, today), [jobs, today]);
+  const overdueJobs = useMemo(() => jobsOverdue(jobs, today), [jobs, today]);
 
   const moveJob = async (index, direction) => {
     const list = [...todaysJobs];
@@ -351,20 +338,14 @@ export default function TodaySimple({
     [checklist, typeChecklists, relevantTypes]
   );
 
-  const overdueInvoiceCount = useMemo(
-    () => invoices.filter((i) => i.status === "unpaid" && i.due_date < today).length,
-    [invoices, today]
-  );
-  const newLeadCount = useMemo(() => leads.filter((l) => l.status === "new").length, [leads]);
+  const overdueInvoiceCount = useMemo(() => invoicesOverdue(invoices, today).length, [invoices, today]);
+  const newLeadCount = useMemo(() => leadsNew(leads).length, [leads]);
 
   const priorityIds = useMemo(() => new Set([...overdueJobs, ...todaysJobs].map((j) => j.customer_id)), [overdueJobs, todaysJobs]);
 
   // What actually got done today, regardless of which day it was originally
   // scheduled for - an overdue job finished today still counts as today's work.
-  const completedTodayJobs = useMemo(
-    () => jobs.filter((j) => j.status === "completed" && (j.completed_at || "").slice(0, 10) === today),
-    [jobs, today]
-  );
+  const completedTodayJobs = useMemo(() => jobsCompletedToday(jobs, today), [jobs, today]);
   const completedTodayTotal = useMemo(() => completedTodayJobs.reduce((s, j) => s + Number(j.price || 0), 0), [completedTodayJobs]);
 
   const hasPrice = (j) => j.price != null && Number(j.price) > 0;
@@ -531,6 +512,8 @@ export default function TodaySimple({
         )}
 
         <MorningCheck jobs={jobs} customers={customers} checklist={effectiveChecklist} baseChecklist={checklist} onSaveChecklist={onSaveChecklist} />
+
+        <ActivityTodayLine activity={activity} onUndo={onUndoActivity} />
 
         {overdueInvoiceCount > 0 && newLeadCount > 0 ? (
           <button
