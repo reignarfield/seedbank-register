@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Globe, Wrench, LogOut, Zap } from "lucide-react";
+import { LayoutDashboard, Users, CalendarDays, Receipt, Inbox, Car, Globe, Wrench, LogOut, Zap, FlaskConical } from "lucide-react";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -12,7 +12,7 @@ const TABS = [
   { id: "dev", label: "Dev", icon: Wrench },
 ];
 
-export default function NavBar({ view, setView, onGoSimple, onLogout, leadBadge, demoMode, onExitDemo }) {
+export default function NavBar({ view, setView, onGoSimple, onLogout, leadBadge, demoMode, onEnterDemo, onExitDemo }) {
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -59,6 +59,16 @@ export default function NavBar({ view, setView, onGoSimple, onLogout, leadBadge,
                 );
               })}
             </div>
+            {!demoMode && (
+              <button
+                onClick={onEnterDemo}
+                title="Switch to a sample business to explore or show the app - nothing real is touched"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-amber-600 transition-colors"
+              >
+                <FlaskConical size={14} strokeWidth={2.25} />
+                <span className="hidden sm:inline">Demo</span>
+              </button>
+            )}
             <button
               onClick={onGoSimple}
               title="Back to Today"

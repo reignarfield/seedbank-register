@@ -94,7 +94,14 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
-  const [demoMode, setDemoModeState] = useState(isDemoMode());
+  // /team?demo switches the sample business on before anything renders, so
+  // a bookmarked link is all it takes to walk someone through the app. It
+  // only touches which data set is shown - signing in is still required.
+  const [demoMode, setDemoModeState] = useState(() => {
+    const wantsDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("demo");
+    if (wantsDemo) setDemoMode(true);
+    return wantsDemo || isDemoMode();
+  });
   const [recovering, setRecovering] = useState(false);
 
   const [customers, setCustomers] = useState([]);
@@ -477,6 +484,7 @@ export default function App() {
         invoices={invoices}
         leads={leads}
         demoMode={demoMode}
+        onEnterDemo={() => toggleDemoMode(true)}
         onExitDemo={() => toggleDemoMode(false)}
         onLogout={handleLogout}
         onGoAdvanced={(tab) => {
@@ -491,7 +499,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      <NavBar view={view} setView={setView} onGoSimple={() => setMode("simple")} onLogout={handleLogout} leadBadge={newLeadCount} demoMode={demoMode} onExitDemo={() => toggleDemoMode(false)} />
+      <NavBar view={view} setView={setView} onGoSimple={() => setMode("simple")} onLogout={handleLogout} leadBadge={newLeadCount} demoMode={demoMode} onEnterDemo={() => toggleDemoMode(true)} onExitDemo={() => toggleDemoMode(false)} />
 
       {view === "dashboard" && (
         <Dashboard

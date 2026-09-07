@@ -21,6 +21,7 @@ import {
   CloudRain,
   MapPin,
   PartyPopper,
+  FlaskConical,
 } from "lucide-react";
 import { Card, Button, EmptyState, TextInput, TextArea, money } from "./ui";
 import { todayStr, addDays, formatDate } from "../lib/dates";
@@ -264,6 +265,7 @@ export default function TodaySimple({
   invoices,
   leads,
   demoMode,
+  onEnterDemo,
   onExitDemo,
   onLogout,
   onGoAdvanced,
@@ -376,6 +378,16 @@ export default function TodaySimple({
             )}
           </div>
           <div className="flex items-center gap-1">
+            {!demoMode && (
+              <button
+                onClick={onEnterDemo}
+                title="Switch to a sample business to explore or show the app - nothing real is touched"
+                className="flex items-center gap-1.5 px-2 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-amber-600 transition-colors whitespace-nowrap shrink-0"
+              >
+                <FlaskConical size={14} strokeWidth={2.25} />
+                <span className="hidden sm:inline">Demo</span>
+              </button>
+            )}
             <button
               onClick={() => onGoAdvanced()}
               className="flex items-center gap-1.5 px-2 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors whitespace-nowrap shrink-0"
