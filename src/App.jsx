@@ -55,7 +55,7 @@ import Dev from "./components/Dev";
 import Settings from "./components/Settings";
 import UsageTimeline from "./components/UsageTimeline";
 import FeedbackButton from "./components/FeedbackButton";
-import { startSession, trackScreen, attachTapListener, flush as flushTracking } from "./lib/track";
+import { startSession, trackScreen, attachTapListener, flush as flushTracking, endSession } from "./lib/track";
 import Mileage from "./components/Mileage";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
@@ -214,7 +214,9 @@ export default function App() {
   }, [session, mode, view]);
 
   const handleLogout = async () => {
-    await flushTracking();
+    // Ends this login's tracking session outright, so the next person to sign
+    // in on the same phone starts a session of their own.
+    await endSession();
     await signOut();
     setSession(null);
     setCustomers([]);

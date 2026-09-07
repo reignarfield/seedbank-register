@@ -539,11 +539,13 @@ $$;
 grant execute on function public.undo_activity(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Usage tracking and suggestions (migration 0012)
+-- Usage tracking and suggestions (migrations 0012, 0013)
 -- ---------------------------------------------------------------------------
 create table if not exists public.usage_events (
   id uuid primary key default gen_random_uuid(),
   session_id text not null,            -- one per app open, kept in sessionStorage
+  user_id uuid references auth.users(id) on delete set null,  -- whose day this is
+  user_email text,                     -- kept alongside so a timeline reads without a join
   occurred_at timestamptz not null default now(),
   kind text not null check (kind in ('session_start', 'screen', 'tap', 'feedback', 'session_end')),
   screen text,                         -- where it happened: today, schedule, customers...
@@ -554,27 +556,42 @@ create table if not exists public.usage_events (
 
 create index if not exists usage_events_session_idx on public.usage_events(session_id, occurred_at);
 create index if not exists usage_events_time_idx on public.usage_events(occurred_at desc);
+create index if not exists usage_events_user_idx on public.usage_events(user_id, occurred_at desc);
 
+-- Any signed-in user can read every row - comparing two people's days is the
+-- point - but the database decides whose row it is, so nobody can write one in
+-- someone else's name.
 alter table public.usage_events enable row level security;
 drop policy if exists "authenticated full access" on public.usage_events;
-create policy "authenticated full access" on public.usage_events
-  for all to authenticated using (true) with check (true);
+drop policy if exists "usage read"   on public.usage_events;
+drop policy if exists "usage insert" on public.usage_events;
+create policy "usage read"   on public.usage_events for select to authenticated using (true);
+create policy "usage insert" on public.usage_events for insert to authenticated with check (user_id = auth.uid());
 
 -- Suggestions from the little button in the corner.
 create table if not exists public.feedback (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
   session_id text,
+  user_id uuid references auth.users(id) on delete set null,
+  user_email text,
   screen text,
   trying_to text,                      -- "what were you trying to do?" - optional
   message text not null,
   resolved_at timestamptz
 );
 
+create index if not exists feedback_user_idx on public.feedback(user_id, created_at desc);
+
 alter table public.feedback enable row level security;
 drop policy if exists "authenticated full access" on public.feedback;
-create policy "authenticated full access" on public.feedback
-  for all to authenticated using (true) with check (true);
+drop policy if exists "feedback read"   on public.feedback;
+drop policy if exists "feedback insert" on public.feedback;
+drop policy if exists "feedback update" on public.feedback;
+create policy "feedback read"   on public.feedback for select to authenticated using (true);
+create policy "feedback insert" on public.feedback for insert to authenticated with check (user_id = auth.uid());
+-- Marking a suggestion resolved is builder housekeeping, not authorship.
+create policy "feedback update" on public.feedback for update to authenticated using (true) with check (true);
 
 -- ===========================================================================
 -- Done. Next: Authentication -> Users -> Add user (tick auto-confirm) to

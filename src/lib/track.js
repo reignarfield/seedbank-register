@@ -1,7 +1,9 @@
 // Usage tracking: which screen, for how long, and every tap by its own label.
 //
-// Deliberately dumb. No analytics library, no identifiers beyond a per-open
-// session id, nothing sent anywhere but this app's own database. Events are
+// Deliberately dumb. No analytics library, no third party, nothing sent
+// anywhere but this app's own database. A session is one app-open; the login
+// it belongs to is stamped on every row by lib/supabaseApi, so two people
+// using the app produce two readable days instead of one blurred one. Events are
 // batched and flushed every few seconds and when the tab is hidden, so a
 // phone going in a pocket mid-job still gets its last screen recorded.
 //
@@ -112,6 +114,24 @@ export function currentScreen() {
 
 export function currentSessionId() {
   return sessionId;
+}
+
+// HANDOFF 1/4: signing out ends the session for real. Without this the
+// sessionStorage id outlives the login, so the next person to sign in on the
+// same phone continues someone else's session and the timeline shows one
+// session with two people's names on it.
+export async function endSession() {
+  closeScreen();
+  push({ kind: "session_end", meta: meta() });
+  await flush();
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    // Private mode: nothing to clear.
+  }
+  sessionId = null;
+  current = null;
+  lastScreen = null;
 }
 
 // Attach once. Reads the tapped control's own words so the log says

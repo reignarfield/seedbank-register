@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Clock, MousePointerClick, MessageSquare, Download, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Clock, MousePointerClick, MessageSquare, Download, Loader2, ChevronDown, ChevronRight, User } from "lucide-react";
 import { Card, Button, EmptyState, SectionTitle } from "./ui";
 import { fetchUsageEvents, fetchFeedback } from "../lib/api";
 import { downloadCsv } from "../lib/taxPack";
@@ -7,6 +7,11 @@ import { downloadCsv } from "../lib/taxPack";
 // For whoever's building the app, not for Tyson: every session as a timeline
 // of screens (with how long) and taps (by their own label), plus his
 // suggestions. This is where the personalised order of the app comes from.
+//
+// HANDOFF 1/4: everything on this screen is per-login now. The filter at the
+// top picks whose day you're reading; totals, sessions and suggestions all
+// follow it. Reading one blended average across two people was the thing that
+// would have quietly made this screen lie.
 
 function fmtMs(ms) {
   const s = Math.round((ms || 0) / 1000);
@@ -17,6 +22,17 @@ function fmtMs(ms) {
 function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
+// Who a row belongs to. Rows written before logins were stamped (migration
+// 0013) have no user_id - they're shown, and labelled, as unattributed rather
+// than being folded into whoever happens to be signed in now.
+const UNATTRIBUTED = "__none__";
+function personKey(row) {
+  return row.user_id || UNATTRIBUTED;
+}
+function personName(row) {
+  return row.user_email || (row.user_id ? row.user_id.slice(0, 8) : "Before logins were tracked");
+}
+
 function fmtDay(iso) {
   return new Date(iso).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
 }
@@ -36,6 +52,7 @@ function Session({ s, open, onToggle }) {
       <button onClick={onToggle} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50">
         <div className="min-w-0">
           <div className="text-sm font-medium text-slate-900">{fmtDay(s.start)} · {fmtTime(s.start)}</div>
+          <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5"><User size={11} className="text-slate-400" /> {s.who}</div>
           <div className="text-xs text-slate-500 flex items-center gap-3 mt-0.5">
             <span className="flex items-center gap-1"><Clock size={11} /> {fmtMs(total)}</span>
             <span className="flex items-center gap-1"><MousePointerClick size={11} /> {taps} taps</span>
@@ -80,6 +97,7 @@ export default function UsageTimeline({ onBack }) {
   const [events, setEvents] = useState(null);
   const [feedback, setFeedback] = useState([]);
   const [openId, setOpenId] = useState(null);
+  const [who, setWho] = useState("all"); // "all" | a user_id | UNATTRIBUTED
 
   useEffect(() => {
     Promise.all([fetchUsageEvents(), fetchFeedback()])
@@ -87,30 +105,56 @@ export default function UsageTimeline({ onBack }) {
       .catch(() => { setEvents([]); });
   }, []);
 
-  const sessions = useMemo(() => {
-    if (!events) return [];
+  // Everyone who has used the app, with how much of the record is theirs, so
+  // the filter itself says whether a person has enough sessions to read.
+  const people = useMemo(() => {
     const m = new Map();
-    for (const e of [...events].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))) {
-      if (!m.has(e.session_id)) m.set(e.session_id, { id: e.session_id, start: e.occurred_at, events: [] });
-      m.get(e.session_id).events.push(e);
+    for (const e of events || []) {
+      const k = personKey(e);
+      if (!m.has(k)) m.set(k, { key: k, name: personName(e), events: 0 });
+      m.get(k).events += 1;
+    }
+    return [...m.values()].sort((a, b) => b.events - a.events);
+  }, [events]);
+
+  // One person's rows, or everyone's. Every number below is derived from this,
+  // so the filter can never apply to half the screen.
+  const shown = useMemo(
+    () => (events || []).filter((e) => who === "all" || personKey(e) === who),
+    [events, who]
+  );
+  const shownFeedback = useMemo(
+    () => feedback.filter((f) => who === "all" || personKey(f) === who),
+    [feedback, who]
+  );
+
+  // A session belongs to one login: the same session id can't span two people
+  // now that signing out ends it, but keying on both makes that structural
+  // rather than a thing to remember.
+  const sessions = useMemo(() => {
+    const m = new Map();
+    for (const e of [...shown].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))) {
+      const key = `${personKey(e)}:${e.session_id}`;
+      if (!m.has(key)) m.set(key, { id: key, start: e.occurred_at, who: personName(e), events: [] });
+      m.get(key).events.push(e);
     }
     return [...m.values()].sort((a, b) => b.start.localeCompare(a.start));
-  }, [events]);
+  }, [shown]);
 
   // Across every session: where does the time go, and what gets tapped most?
   const totals = useMemo(() => {
     const screen = new Map(), tap = new Map();
-    for (const e of events || []) {
+    for (const e of shown) {
       if (e.kind === "screen") screen.set(e.screen, (screen.get(e.screen) || 0) + (e.duration_ms || 0));
       if (e.kind === "tap") tap.set(e.label, (tap.get(e.label) || 0) + 1);
     }
     const sortD = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
     return { screen: sortD(screen), tap: sortD(tap).slice(0, 12) };
-  }, [events]);
+  }, [shown]);
 
   const exportCsv = () => {
-    const rows = (events || []).map((e) => [e.occurred_at, e.session_id, e.kind, e.screen || "", e.label || "", e.duration_ms ?? "", JSON.stringify(e.meta || {})]);
-    const csv = [["occurred_at", "session", "kind", "screen", "label", "duration_ms", "meta"], ...rows]
+    const rows = shown.map((e) => [e.occurred_at, e.user_email || "", e.session_id, e.kind, e.screen || "", e.label || "", e.duration_ms ?? "", JSON.stringify(e.meta || {})]);
+    const csv = [["occurred_at", "who", "session", "kind", "screen", "label", "duration_ms", "meta"], ...rows]
       .map((r) => r.map((v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v)).join(","))
       .join("\r\n");
     downloadCsv("usage-events.csv", csv);
@@ -133,6 +177,26 @@ export default function UsageTimeline({ onBack }) {
         <EmptyState icon={MousePointerClick} title="Nothing recorded yet." subtitle="Once the app's been opened and used, sessions show up here." />
       ) : (
         <>
+          {people.length > 1 && (
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setWho("all")}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${who === "all" ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}
+              >
+                Everyone
+              </button>
+              {people.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => setWho(p.key)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${who === p.key ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}
+                >
+                  {p.name} <span className={who === p.key ? "text-blue-200" : "text-slate-400"}>{p.events}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Card className="p-4">
               <SectionTitle>Where the time goes</SectionTitle>
@@ -159,14 +223,14 @@ export default function UsageTimeline({ onBack }) {
             </Card>
           </div>
 
-          {feedback.length > 0 && (
+          {shownFeedback.length > 0 && (
             <Card className="p-4">
-              <SectionTitle>His suggestions</SectionTitle>
+              <SectionTitle>Suggestions</SectionTitle>
               <div className="divide-y divide-slate-100">
-                {feedback.map((f) => (
+                {shownFeedback.map((f) => (
                   <div key={f.id} className="py-2.5">
                     <div className="text-sm text-slate-800">{f.message}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">{fmtDay(f.created_at)} {fmtTime(f.created_at)}{f.screen ? ` · on ${f.screen}` : ""}{f.trying_to ? ` · trying to: ${f.trying_to}` : ""}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{personName(f)} · {fmtDay(f.created_at)} {fmtTime(f.created_at)}{f.screen ? ` · on ${f.screen}` : ""}{f.trying_to ? ` · trying to: ${f.trying_to}` : ""}</div>
                   </div>
                 ))}
               </div>

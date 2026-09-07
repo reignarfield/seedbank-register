@@ -346,10 +346,27 @@ export async function addCustomerNote(customerId, note) {
 
 // ---------------------------------------------------------------------------
 // Usage tracking + feedback. Always the real database, demo mode or not.
+//
+// HANDOFF 1/4: every row is stamped with the signed-in login here, at the one
+// door into the table, rather than by each caller - a caller that forgets is
+// now a row the database rejects (RLS checks user_id = auth.uid()), not a row
+// that quietly lands attributed to nobody.
 // ---------------------------------------------------------------------------
+
+// The current login as {user_id, user_email}, or nulls when signed out.
+async function whoami() {
+  const { data } = await supabase.auth.getUser();
+  const u = data?.user;
+  return { user_id: u?.id || null, user_email: u?.email || null };
+}
+
 export async function insertUsageEvents(rows) {
   if (!rows.length) return;
-  const { error } = await supabase.from("usage_events").insert(rows);
+  const me = await whoami();
+  // Signed out there is nobody to attribute this to, and RLS would reject it
+  // anyway - drop it rather than retrying the batch forever.
+  if (!me.user_id) return;
+  const { error } = await supabase.from("usage_events").insert(rows.map((r) => ({ ...r, ...me })));
   if (error) throw error;
 }
 export async function fetchUsageEvents(limit = 2000) {
@@ -358,7 +375,8 @@ export async function fetchUsageEvents(limit = 2000) {
   return data || [];
 }
 export async function submitFeedback({ message, trying_to, screen, session_id }) {
-  const { error } = await supabase.from("feedback").insert({ message, trying_to, screen, session_id });
+  const me = await whoami();
+  const { error } = await supabase.from("feedback").insert({ message, trying_to, screen, session_id, ...me });
   if (error) throw error;
 }
 export async function fetchFeedback() {
