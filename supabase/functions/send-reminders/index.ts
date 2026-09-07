@@ -32,7 +32,7 @@ const DUE_SOON_LEAD_DAYS = 3; // start reminding this many days before the clean
 const DUE_SOON_RESEND_DAYS = 21; // don't re-email the same customer more often than this
 const INVOICE_OVERDUE_RESEND_DAYS = 5;
 const NEVER_REPEAT_DAYS = 400; // for once-per-job emails (confirmation, review request)
-const RENEWAL_LEAD_DAYS = 30; // how far ahead to flag renewals in the owner digest
+const DEFAULT_RENEWAL_LEAD_DAYS = 30; // overridden by settings.renewal_lead_days
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -108,11 +108,27 @@ Deno.serve(async () => {
   };
 
   try {
+    // ---- 0. What's switched on ----
+    // Each kind of email is off until the owner has seen it and turned it on
+    // in Settings. Nothing customer-facing goes out on a default. The owner
+    // digest is the one exception, on unless switched off.
+    const { data: settingsRow } = await supabase.from("settings").select("reminders, renewal_lead_days").eq("id", true).maybeSingle();
+    const on = {
+      owner_digest: true,
+      due_soon: false,
+      invoice_overdue: false,
+      job_confirmation: false,
+      review_request: false,
+      ...(settingsRow?.reminders || {}),
+    };
+    const RENEWAL_LEAD_DAYS = settingsRow?.renewal_lead_days ?? DEFAULT_RENEWAL_LEAD_DAYS;
+
     // ---- 1. Customers due for their next clean ----
     const { data: customers, error: custError } = await supabase
       .from("customers")
       .select("id, name, email, frequency_weeks, last_service_date, status")
       .eq("status", "active")
+      .is("archived_at", null)
       .not("frequency_weeks", "is", null)
       .not("last_service_date", "is", null);
     if (custError) throw custError;
@@ -125,6 +141,7 @@ Deno.serve(async () => {
       if (daysUntil > DUE_SOON_LEAD_DAYS) continue; // not due soon yet
 
       dueSoonList.push({ name: c.name, nextDue });
+      if (!on.due_soon) continue; // counted for the digest, not emailed
 
       if (!c.email) continue; // nothing to send, but still counted in the owner digest
       if (await recentlySent("due_soon", c.id, DUE_SOON_RESEND_DAYS)) continue;
@@ -146,6 +163,7 @@ Deno.serve(async () => {
       .from("invoices")
       .select("id, amount, due_date, customer_id, customers(name, email)")
       .eq("status", "unpaid")
+      .is("archived_at", null)
       .lt("due_date", today);
     if (invError) throw invError;
 
@@ -155,6 +173,7 @@ Deno.serve(async () => {
       const customer = Array.isArray(inv.customers) ? inv.customers[0] : inv.customers;
       overdueList.push({ name: customer?.name || "Unknown", amount: inv.amount, dueDate: inv.due_date });
 
+      if (!on.invoice_overdue) continue; // counted for the digest, not emailed
       if (!customer?.email) continue;
       if (await recentlySent("invoice_overdue", inv.id, INVOICE_OVERDUE_RESEND_DAYS)) continue;
 
@@ -176,10 +195,11 @@ Deno.serve(async () => {
       .from("jobs")
       .select("id, scheduled_date, customer_id, customers(name, email)")
       .eq("status", "scheduled")
+      .is("archived_at", null)
       .eq("scheduled_date", tomorrow);
     if (jobError) throw jobError;
 
-    for (const j of upcomingJobs || []) {
+    for (const j of on.job_confirmation ? upcomingJobs || [] : []) {
       const customer = Array.isArray(j.customers) ? j.customers[0] : j.customers;
       if (!customer?.email) continue;
       if (await recentlySent("job_confirmation", j.id, NEVER_REPEAT_DAYS)) continue;
@@ -203,11 +223,12 @@ Deno.serve(async () => {
         .from("jobs")
         .select("id, completed_at, customer_id, customers(name, email)")
         .eq("status", "completed")
+        .is("archived_at", null)
         .gte("completed_at", `${yesterday}T00:00:00`)
         .lt("completed_at", `${today}T00:00:00`);
       if (reviewJobError) throw reviewJobError;
 
-      for (const j of recentlyCompleted || []) {
+      for (const j of on.review_request ? recentlyCompleted || [] : []) {
         const customer = Array.isArray(j.customers) ? j.customers[0] : j.customers;
         if (!customer?.email) continue;
         if (await recentlySent("review_request", j.id, NEVER_REPEAT_DAYS)) continue;
@@ -245,7 +266,7 @@ Deno.serve(async () => {
     results.renewalsInDigest = (renewals || []).length;
 
     // ---- 6. Owner digest ----
-    if (ownerEmail && (dueSoonList.length > 0 || overdueList.length > 0 || (newLeads || []).length > 0 || (renewals || []).length > 0)) {
+    if (on.owner_digest && ownerEmail && (dueSoonList.length > 0 || overdueList.length > 0 || (newLeads || []).length > 0 || (renewals || []).length > 0)) {
       const leadRows = (newLeads || [])
         .map((l) => `<li><strong>${l.name}</strong> — ${[l.phone, l.email].filter(Boolean).join(" / ") || "no contact info"}${l.address ? ` — ${l.address}` : ""}${l.message ? `<br/><em>${l.message}</em>` : ""}</li>`)
         .join("");
