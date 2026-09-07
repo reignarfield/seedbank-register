@@ -38,6 +38,10 @@ export const BUSINESS = {
   // UK equivalent would be pence per mile - change `distanceUnit` too.
   mileageRateCents: Number(env.VITE_MILEAGE_RATE_CENTS || 88),
   distanceUnit: env.VITE_DISTANCE_UNIT || "km",
+  // Days from issue to due on an automatically raised invoice. Was hardcoded
+  // as 14 in three places; the kind of number that gets changed once and then
+  // has to be found again.
+  invoiceDueDays: Number(env.VITE_INVOICE_DUE_DAYS || 14),
 
   // --- Vocabulary ---------------------------------------------------------
   // What this trade calls the thing it does at a customer's address. A cleaner

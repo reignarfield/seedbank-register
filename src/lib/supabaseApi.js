@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient";
 import { todayStr, addDays } from "./dates";
 import { geocode, drivingDistanceKm } from "./geo";
+import { BUSINESS, cap } from "./business";
 
 // ---------------------------------------------------------------------------
 // Auth
@@ -84,46 +85,23 @@ export async function deleteJob(id) {
 // recurring due-dates stay accurate without a separate "generate next job" step.
 // If the job has a price, an invoice is raised automatically so completing a
 // job is the only manual step - no separate "now go invoice it" chore.
+// One database call, all-or-nothing: see supabase/migrations/0010. A price
+// supplied at completion (the "what's this worth?" prompt) is passed through
+// and lands on the job as well as the invoice. The invoice wording comes from
+// here, not the database, because only the app knows this trade's word for
+// what it does - a job scheduled from an accepted quote carries the quote's
+// description in job.notes and that wins.
 export async function completeJob(job, { paidNow } = {}) {
-  const jobUpdates = { status: "completed", completed_at: new Date().toISOString() };
-  // A price supplied at completion time (e.g. via the "what's this worth?"
-  // prompt when the job was booked with no price) is persisted onto the job
-  // itself too, not just used to raise the invoice below.
-  if (job.price != null && Number(job.price) > 0) jobUpdates.price = Number(job.price);
-
-  const { data: updatedJob, error: jobError } = await supabase
-    .from("jobs")
-    .update(jobUpdates)
-    .eq("id", job.id)
-    .select()
-    .single();
-  if (jobError) throw jobError;
-
-  const { error: custError } = await supabase
-    .from("customers")
-    .update({ last_service_date: job.scheduled_date })
-    .eq("id", job.customer_id);
-  if (custError) throw custError;
-
-  if (job.price != null && Number(job.price) > 0) {
-    const { error: invError } = await supabase.from("invoices").insert({
-      customer_id: job.customer_id,
-      job_id: job.id,
-      // A job scheduled straight from an accepted quote carries the quote's
-      // description onto job.notes, so the invoice says what was actually
-      // quoted instead of a generic line.
-      description: job.notes || `Window clean — ${job.scheduled_date}`,
-      amount: Number(job.price),
-      due_date: addDays(todayStr(), 14),
-      // Paid on the spot (cash/card at completion) skips the separate
-      // "go mark it paid later" trip into Billing.
-      status: paidNow ? "paid" : "unpaid",
-      paid_date: paidNow ? todayStr() : null,
-    });
-    if (invError) throw invError;
-  }
-
-  return updatedJob;
+  const price = job.price != null && Number(job.price) > 0 ? Number(job.price) : null;
+  const { data, error } = await supabase.rpc("complete_job", {
+    p_job_id: job.id,
+    p_price: price,
+    p_paid_now: !!paidNow,
+    p_description: job.notes || `${cap(BUSINESS.vocab.service)} — ${job.scheduled_date}`,
+    p_due_days: BUSINESS.invoiceDueDays,
+  });
+  if (error) throw error;
+  return data;
 }
 
 // Best-effort: log one leg of today's route (wherever he actually last was

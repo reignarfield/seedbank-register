@@ -1,4 +1,5 @@
 import { todayStr, addDays } from "./dates";
+import { BUSINESS, cap } from "./business";
 
 // A realistic sample book of business, held in memory. Mirrors the shapes the
 // Supabase layer returns so every screen behaves exactly as it would with real
@@ -155,11 +156,11 @@ export const completeJob = async (job, { paidNow } = {}) => {
         id: uid("di"),
         customer_id: job.customer_id,
         job_id: job.id,
-        description: updated.notes || `Window clean — ${job.scheduled_date}`,
+        description: updated.notes || `${cap(BUSINESS.vocab.service)} — ${job.scheduled_date}`,
         amount: price,
         status: paidNow ? "paid" : "unpaid",
         issued_date: todayStr(),
-        due_date: addDays(todayStr(), 14),
+        due_date: addDays(todayStr(), BUSINESS.invoiceDueDays),
         paid_date: paidNow ? todayStr() : null,
       },
     ];

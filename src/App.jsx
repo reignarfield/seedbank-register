@@ -138,30 +138,29 @@ export default function App() {
   // as before - this only adds visibility.
   const notifyError = (message) => setToast({ message });
 
-  const reload = async () => {
+  // Each table and the state it lands in, so a write can refresh just what it
+  // touched. Marking a job done from a driveway used to re-download all ten
+  // tables; now it's the three that changed. Sit-down admin actions on Wi-Fi
+  // still refresh everything - the cost there is invisible and it keeps every
+  // derived number (dashboard totals, due lists) trivially consistent.
+  const TABLES = {
+    customers: [fetchCustomers, setCustomers],
+    jobs: [fetchJobs, setJobs],
+    quotes: [fetchQuotes, setQuotes],
+    invoices: [fetchInvoices, setInvoices],
+    leads: [fetchLeads, setLeads],
+    expenses: [fetchExpenses, setExpenses],
+    renewals: [fetchRenewals, setRenewals],
+    trips: [fetchTrips, setTrips],
+    settings: [fetchSettings, setSettings],
+    customerNotes: [fetchCustomerNotes, setCustomerNotes],
+  };
+
+  const reload = async (only) => {
+    const names = only || Object.keys(TABLES);
     try {
-      const [c, j, q, i, l, ex, re, tr, st, cn] = await Promise.all([
-        fetchCustomers(),
-        fetchJobs(),
-        fetchQuotes(),
-        fetchInvoices(),
-        fetchLeads(),
-        fetchExpenses(),
-        fetchRenewals(),
-        fetchTrips(),
-        fetchSettings(),
-        fetchCustomerNotes(),
-      ]);
-      setCustomers(c);
-      setJobs(j);
-      setQuotes(q);
-      setInvoices(i);
-      setLeads(l);
-      setExpenses(ex);
-      setRenewals(re);
-      setTrips(tr);
-      setSettings(st);
-      setCustomerNotes(cn);
+      const results = await Promise.all(names.map((n) => TABLES[n][0]()));
+      results.forEach((data, idx) => TABLES[names[idx]][1](data));
     } catch (e) {
       notifyError("Could not load data: " + (e?.message || "unknown error"));
     }
@@ -227,7 +226,7 @@ export default function App() {
   const saveJob = async (j) => {
     try {
       await upsertJob(j);
-      await reload();
+      await reload(["jobs"]);
     } catch (e) {
       notifyError("Couldn't save that job - check your connection and try again.");
       throw e;
@@ -238,8 +237,10 @@ export default function App() {
       const pos = currentPosition(trips, customers, settings);
       await completeJob(j, { paidNow });
       const customer = customers.find((c) => c.id === j.customer_id);
-      if (customer) logAutoTrip(pos, customer, j.job_type).catch(() => {});
-      await reload();
+      // The trip logs in the background; trips refresh once it's had a chance
+      // to land rather than racing it.
+      if (customer) logAutoTrip(pos, customer, j.job_type).then(() => reload(["trips"])).catch(() => {});
+      await reload(["jobs", "customers", "invoices"]);
     } catch (e) {
       notifyError("Couldn't mark that job done - check your connection and try again.");
       throw e;
@@ -252,7 +253,7 @@ export default function App() {
     try {
       const pos = currentPosition(trips, customers, settings);
       await logHeadingHome(pos, { label: settings.home_base_address, lat: settings.home_base_lat, lng: settings.home_base_lng }).catch(() => {});
-      await reload();
+      await reload(["trips"]);
     } catch (e) {
       notifyError("Couldn't log that - check your connection and try again.");
       throw e;
@@ -261,7 +262,7 @@ export default function App() {
   const cancelJob = async (j) => {
     try {
       await upsertJob({ ...j, status: "cancelled" });
-      await reload();
+      await reload(["jobs"]);
     } catch (e) {
       notifyError("Couldn't cancel that job - check your connection and try again.");
       throw e;
@@ -293,7 +294,7 @@ export default function App() {
   };
   const markPaid = async (inv) => {
     await apiMarkInvoicePaid(inv.id);
-    await reload();
+    await reload(["invoices"]);
   };
 
   // ---- Expenses ----
@@ -344,7 +345,7 @@ export default function App() {
   const addNote = async (customerId, note) => {
     try {
       await addCustomerNote(customerId, note);
-      await reload();
+      await reload(["customerNotes"]);
     } catch (e) {
       notifyError("Couldn't save that note - check your connection and try again.");
       throw e;
@@ -465,6 +466,7 @@ export default function App() {
         <TodaySimple
           jobs={jobs}
         customers={customers}
+        customerNotes={customerNotes}
         checklist={settings.packing_checklist || []}
         typeChecklists={settings.type_checklists || {}}
         onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}

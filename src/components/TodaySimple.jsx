@@ -22,6 +22,7 @@ import {
   MapPin,
   PartyPopper,
   FlaskConical,
+  KeyRound,
 } from "lucide-react";
 import { Card, Button, EmptyState, TextInput, TextArea, money } from "./ui";
 import { todayStr, addDays, formatDate } from "../lib/dates";
@@ -95,7 +96,12 @@ function StartDayCard({ homeBaseAddress, rainChance, onStart }) {
   );
 }
 
-function JobRow({ job, customer, overdue, onComplete, onReschedule, order }) {
+// Everything a person needs to know standing at the gate lives on this card:
+// the job's own notes, the customer's access notes (gate code, dog, ladder),
+// and the most recent thing jotted about them. Each comes from exactly one
+// place - job.notes, customer.access_notes, customer_notes - so what's shown
+// here is what's stored there, never a copy that can drift.
+function JobRow({ job, customer, latestNote, overdue, onComplete, onReschedule, order }) {
   const [paidNow, setPaidNow] = useState(false);
   const priced = job.price != null && Number(job.price) > 0;
 
@@ -112,6 +118,19 @@ function JobRow({ job, customer, overdue, onComplete, onReschedule, order }) {
             )}
           </div>
           <div className="text-sm text-slate-500 mt-0.5">{customer?.address || "No address on file"}</div>
+          {job.notes && <div className="text-sm text-slate-700 mt-1.5">{job.notes}</div>}
+          {customer?.access_notes && (
+            <div className="flex items-start gap-1.5 text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mt-2">
+              <KeyRound size={14} className="shrink-0 mt-0.5" />
+              <span>{customer.access_notes}</span>
+            </div>
+          )}
+          {latestNote && (
+            <div className="flex items-start gap-1.5 text-xs text-slate-500 mt-1.5">
+              <StickyNote size={12} className="shrink-0 mt-0.5" />
+              <span><span className="text-slate-400">{formatDate(latestNote.created_at.slice(0, 10))} — </span>{latestNote.note}</span>
+            </div>
+          )}
         </div>
         {order && (
           <div className="flex flex-col shrink-0 border border-slate-200 rounded-lg overflow-hidden">
@@ -246,6 +265,7 @@ function AddNoteModal({ customers, priorityIds, onCancel, onSave }) {
 export default function TodaySimple({
   jobs,
   customers,
+  customerNotes = [],
   checklist,
   typeChecklists = {},
   onSaveChecklist,
@@ -279,6 +299,12 @@ export default function TodaySimple({
   const [weatherDismissed, setWeatherDismissed] = useState(false);
   const today = todayStr();
   const customerById = (id) => customers.find((c) => c.id === id);
+  // customer_notes arrive newest-first, so the first hit per customer is the latest.
+  const latestNoteFor = useMemo(() => {
+    const m = new Map();
+    for (const n of customerNotes) if (!m.has(n.customer_id)) m.set(n.customer_id, n);
+    return m;
+  }, [customerNotes]);
 
   useEffect(() => {
     if (homeBaseLat != null && homeBaseLng != null) {
@@ -449,6 +475,7 @@ export default function TodaySimple({
                   key={j.id}
                   job={j}
                   customer={customerById(j.customer_id)}
+                  latestNote={latestNoteFor.get(j.customer_id)}
                   overdue
                   onComplete={(paidNow) => requestComplete(j, paidNow)}
                   onReschedule={() => setReschedulingJob(j)}
@@ -480,6 +507,7 @@ export default function TodaySimple({
                   key={j.id}
                   job={j}
                   customer={customerById(j.customer_id)}
+                  latestNote={latestNoteFor.get(j.customer_id)}
                   onComplete={(paidNow) => requestComplete(j, paidNow)}
                   onReschedule={() => setReschedulingJob(j)}
                   order={
