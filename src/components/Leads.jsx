@@ -4,7 +4,7 @@ import { Card, Select, Button, StatusPill, EmptyState } from "./ui";
 import { formatDate } from "../lib/dates";
 import PlaceGlance from "./PlaceGlance";
 
-export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustomer, onCreateQuote }) {
+export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustomer, onCreateQuote, embedded = false }) {
   const [filter, setFilter] = useState("all");
 
   const visible = useMemo(() => {
@@ -15,11 +15,13 @@ export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustome
   const FILTERS = ["all", "new", "contacted", "quoted", "won", "lost"];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-      <div className="mb-5">
-        <h1 className="text-2xl font-semibold text-slate-900">Leads</h1>
-        <p className="text-sm text-slate-500 mt-1">Requests from the public "request a quote" page land here first.</p>
-      </div>
+    <div className={embedded ? "" : "max-w-6xl mx-auto px-4 sm:px-6 py-6"}>
+      {!embedded && (
+        <div className="mb-5">
+          <h1 className="text-2xl font-semibold text-slate-900">Enquiries</h1>
+          <p className="text-sm text-slate-500 mt-1">Requests from the public booking page land here first.</p>
+        </div>
+      )}
 
       <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 mb-5 w-fit overflow-x-auto">
         {FILTERS.map((f) => (
@@ -34,7 +36,7 @@ export default function Leads({ leads, onSetStatus, onDelete, onConvertToCustome
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState icon={Inbox} title="No leads here yet." subtitle="Share your quote-request page link to start collecting leads." />
+        <EmptyState icon={Inbox} title="No enquiries here yet." subtitle="Share the booking page link to start collecting them." />
       ) : (
         <div className="space-y-2">
           {visible.map((l) => (

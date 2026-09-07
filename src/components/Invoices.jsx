@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Receipt, Loader2, X, Archive, CheckCircle2, Eye } from "lucide-react";
-import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
+import { Plus, Receipt, Loader2, X, Archive, Printer } from "lucide-react";
+import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, PrimaryBar, money } from "./ui";
 import { formatDate, todayStr, addDays } from "../lib/dates";
 import InvoiceView from "./InvoiceView";
 
@@ -8,7 +8,9 @@ function emptyInvoice(dueDays, overrides = {}) {
   return { customer_id: "", job_id: "", description: "", amount: "", issued_date: todayStr(), due_date: addDays(todayStr(), dueDays), status: "unpaid", ...overrides };
 }
 
-function InvoiceForm({ initial, customers, jobs, onCancel, onSave, onDelete, saving }) {
+// View / print and archive live in here, so the row outside keeps to one
+// labelled action.
+function InvoiceForm({ initial, customers, jobs, onCancel, onSave, onDelete, onView, saving }) {
   const [form, setForm] = useState(initial);
   useEffect(() => setForm(initial), [initial]);
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -53,13 +55,14 @@ function InvoiceForm({ initial, customers, jobs, onCancel, onSave, onDelete, sav
               <TextInput type="date" value={form.due_date} onChange={(e) => set("due_date", e.target.value)} />
             </Field>
           </div>
+          {isEdit && (
+            <div className="flex items-center gap-2 pt-1">
+              <Button variant="secondary" className="!px-3 !py-1.5 !text-xs" onClick={() => onView(form)}><Printer size={13} /> View / print</Button>
+              <Button variant="secondary" className="!px-3 !py-1.5 !text-xs" onClick={() => onDelete(form)} title="Hides it. The record is kept - invoices are tax records."><Archive size={13} /> Archive</Button>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
-          {isEdit && onDelete && (
-            <Button variant="danger" onClick={() => onDelete(form)} className="!px-3" title="Hides it. The record is kept - invoices are tax records.">
-              <Archive size={14} /> Archive
-            </Button>
-          )}
           <div className="flex-1" />
           <Button variant="secondary" onClick={onCancel}>Cancel</Button>
           <Button onClick={() => onSave(form)} disabled={!canSave || saving}>
@@ -72,7 +75,7 @@ function InvoiceForm({ initial, customers, jobs, onCancel, onSave, onDelete, sav
 }
 
 export default function Invoices({ invoices, customers, jobs, settings = {}, onSave, onDelete, onMarkPaid, draft, onDraftConsumed }) {
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("unpaid");
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -92,10 +95,9 @@ export default function Invoices({ invoices, customers, jobs, settings = {}, onS
   const visible = useMemo(() => {
     let list = invoices;
     if (filter === "unpaid") list = invoices.filter((i) => i.status === "unpaid");
-    if (filter === "overdue") list = invoices.filter((i) => i.status === "unpaid" && i.due_date < today);
     if (filter === "paid") list = invoices.filter((i) => i.status === "paid");
-    return [...list].sort((a, b) => a.due_date.localeCompare(b.due_date));
-  }, [invoices, filter, today]);
+    return [...list].sort((a, b) => (filter === "paid" ? (b.paid_date || "").localeCompare(a.paid_date || "") : a.due_date.localeCompare(b.due_date)));
+  }, [invoices, filter]);
 
   const save = async (form) => {
     setSaving(true);
@@ -108,26 +110,20 @@ export default function Invoices({ invoices, customers, jobs, settings = {}, onS
     }
   };
 
-  const FILTERS = ["all", "unpaid", "overdue", "paid"];
+  const FILTERS = ["unpaid", "paid", "all"];
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-        <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 overflow-x-auto">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize whitespace-nowrap transition-colors ${filter === f ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-        <div className="flex-1" />
-        <Button onClick={() => setEditing(emptyInvoice(dueDays))} className="shrink-0" disabled={customers.length === 0}>
-          <Plus size={16} strokeWidth={2.5} /> New invoice
-        </Button>
+      <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 mb-4 w-fit">
+        {FILTERS.map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize whitespace-nowrap transition-colors ${filter === f ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
+          >
+            {f}
+          </button>
+        ))}
       </div>
 
       {!settings.abn && invoices.length > 0 && (
@@ -137,7 +133,7 @@ export default function Invoices({ invoices, customers, jobs, settings = {}, onS
       )}
 
       {visible.length === 0 ? (
-        <EmptyState icon={Receipt} title="No invoices here yet." />
+        <EmptyState icon={Receipt} title={filter === "unpaid" ? "Nothing owing. Nice." : "No invoices here yet."} />
       ) : (
         <div className="space-y-2">
           {visible.map((inv) => {
@@ -149,18 +145,15 @@ export default function Invoices({ invoices, customers, jobs, settings = {}, onS
                   <button onClick={() => setEditing(inv)} className="min-w-0 flex-1 text-left">
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <span className="font-medium text-slate-900 truncate">{c?.name || "Unknown customer"}</span>
-                      <StatusPill status={overdue ? "overdue" : inv.status} />
+                      {(overdue || inv.status === "paid") && <StatusPill status={overdue ? "overdue" : inv.status} />}
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5 truncate">{inv.description || "No description"} · due {formatDate(inv.due_date)}</div>
+                    <div className="text-xs text-slate-500 mt-0.5 truncate">{inv.description || "No description"} · {inv.status === "paid" ? `paid ${formatDate(inv.paid_date)}` : `due ${formatDate(inv.due_date)}`}</div>
                   </button>
                   <div className="text-sm font-semibold tabular-nums text-slate-900 shrink-0">{money(inv.amount)}</div>
-                  <button title="View / print" onClick={() => setViewing(inv)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 shrink-0">
-                    <Eye size={17} />
-                  </button>
-                  {inv.status === "unpaid" && (
-                    <button title="Mark paid" onClick={() => onMarkPaid(inv)} className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50 shrink-0">
-                      <CheckCircle2 size={17} />
-                    </button>
+                  {inv.status === "unpaid" ? (
+                    <Button className="!px-3 !py-2 !text-xs shrink-0" onClick={() => onMarkPaid(inv)}>Mark paid</Button>
+                  ) : (
+                    <Button variant="secondary" className="!px-3 !py-2 !text-xs shrink-0" onClick={() => setViewing(inv)}>View</Button>
                   )}
                 </div>
               </Card>
@@ -169,6 +162,12 @@ export default function Invoices({ invoices, customers, jobs, settings = {}, onS
         </div>
       )}
 
+      <PrimaryBar>
+        <Button className="w-full md:w-auto !py-3 md:!py-2" onClick={() => setEditing(emptyInvoice(dueDays))} disabled={customers.length === 0}>
+          <Plus size={16} strokeWidth={2.5} /> New invoice
+        </Button>
+      </PrimaryBar>
+
       {editing && (
         <InvoiceForm
           initial={editing}
@@ -176,6 +175,7 @@ export default function Invoices({ invoices, customers, jobs, settings = {}, onS
           jobs={jobs}
           onCancel={() => setEditing(null)}
           onSave={save}
+          onView={(inv) => { setEditing(null); setViewing(inv); }}
           onDelete={async (inv) => {
             if (!confirm("Archive this invoice? It leaves the list but stays on record.")) return;
             setSaving(true);

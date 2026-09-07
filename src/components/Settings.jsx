@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Loader2, Building2, Car, Users, ClipboardList, Bell, Wrench, Globe, FlaskConical, Download, ChevronRight, MousePointerClick } from "lucide-react";
+import { Loader2, Building2, Car, Users, ClipboardList, Bell, Wrench, Globe, FlaskConical, Download, ChevronRight, MousePointerClick, ShieldAlert, LogOut, Plus } from "lucide-react";
+import { formatDate, todayStr } from "../lib/dates";
 import { Card, Field, TextInput, Button, SectionTitle } from "./ui";
 import EditChecklistModal from "./EditChecklistModal";
 import { PRICE_GROUPS } from "../lib/pricing";
@@ -76,7 +77,12 @@ export default function Settings({
   onOpenPublicPage,
   demoMode,
   onToggleDemo,
+  renewals = [],
+  onSaveRenewal,
+  onDeleteRenewal,
+  onLogout,
 }) {
+  const [newRenewal, setNewRenewal] = useState(null); // { name, due_date } while adding
   const business = useDraft({ abn: settings.abn || "", gst_registered: !!settings.gst_registered, invoice_due_days: settings.invoice_due_days ?? 14 }, onSave);
   const van = useDraft({ home_base_address: settings.home_base_address || "", mileage_rate_cents: settings.mileage_rate_cents ?? 88 }, async (d) => {
     const coords = d.home_base_address.trim() ? await geocode(d.home_base_address.trim()) : null;
@@ -97,7 +103,7 @@ export default function Settings({
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6 space-y-4">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Settings</h1>
         <p className="text-sm text-slate-500 mt-1">The numbers behind the app. Change them here and every screen follows.</p>
@@ -184,6 +190,36 @@ export default function Settings({
         <SaveRow dirty={reminders.dirty} saving={reminders.saving} onSave={() => reminders.save()} />
       </Section>
 
+      <Section icon={ShieldAlert} title="Renewals" blurb="Insurance, licences, rego - anything with a date it mustn't slip past. They show on Today as they come up.">
+        <div className="divide-y divide-slate-100">
+          {renewals.length === 0 && !newRenewal && <p className="text-sm text-slate-400 py-2">Nothing here yet.</p>}
+          {[...renewals].sort((a, b) => a.due_date.localeCompare(b.due_date)).map((r) => {
+            const overdue = r.due_date < todayStr();
+            return (
+              <div key={r.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <div className="text-sm text-slate-800 truncate">{r.name}</div>
+                  <div className={`text-xs ${overdue ? "text-rose-600" : "text-slate-400"}`}>{overdue ? "Was due" : "Due"} {formatDate(r.due_date)}</div>
+                </div>
+                <button onClick={() => onDeleteRenewal(r.id)} className="text-xs font-medium text-slate-500 hover:text-blue-700 shrink-0">Done</button>
+              </div>
+            );
+          })}
+        </div>
+        {newRenewal ? (
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 mt-3 items-end">
+            <Field label="What"><TextInput value={newRenewal.name} onChange={(e) => setNewRenewal({ ...newRenewal, name: e.target.value })} placeholder="Public liability insurance" autoFocus /></Field>
+            <Field label="Due"><TextInput type="date" value={newRenewal.due_date} onChange={(e) => setNewRenewal({ ...newRenewal, due_date: e.target.value })} /></Field>
+            <div className="flex gap-2">
+              <Button variant="secondary" className="!px-3 !py-2 !text-xs" onClick={() => setNewRenewal(null)}>Cancel</Button>
+              <Button className="!px-3 !py-2 !text-xs" disabled={!newRenewal.name.trim() || !newRenewal.due_date} onClick={async () => { await onSaveRenewal({ name: newRenewal.name.trim(), due_date: newRenewal.due_date }); setNewRenewal(null); }}>Add</Button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setNewRenewal({ name: "", due_date: "" })} className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline mt-2"><Plus size={12} /> Add a renewal</button>
+        )}
+      </Section>
+
       <Section icon={Download} title="Tax pack" blurb="Everything the accountant needs for a financial year, as spreadsheets. Records only - not a tax calculation.">
         <button onClick={() => setShowTaxPack(true)} className="flex items-center justify-between w-full text-sm font-medium text-blue-700 border border-blue-200 bg-blue-50 rounded-xl px-4 py-3 hover:bg-blue-100 transition-colors">
           <span>Download a year's records</span><ChevronRight size={15} />
@@ -203,6 +239,9 @@ export default function Settings({
           </button>
           <button onClick={onOpenDev} className="flex items-center justify-between w-full py-2.5 text-sm text-slate-700 hover:text-blue-700">
             <span className="flex items-center gap-2"><Wrench size={14} /> Changelog and the Journey walkthrough</span><ChevronRight size={15} className="text-slate-300" />
+          </button>
+          <button onClick={onLogout} className="flex items-center justify-between w-full py-2.5 text-sm text-slate-700 hover:text-rose-700">
+            <span className="flex items-center gap-2"><LogOut size={14} /> Sign out</span><ChevronRight size={15} className="text-slate-300" />
           </button>
         </div>
       </Section>

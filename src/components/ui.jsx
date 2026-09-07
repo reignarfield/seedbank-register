@@ -104,6 +104,16 @@ export function EmptyState({ icon: Icon, title, subtitle }) {
   );
 }
 
+// The one primary action of a screen. On a phone it's pinned just above the
+// tab bar, in the thumb zone; on a desktop it sits in the flow, right-aligned.
+export function PrimaryBar({ children }) {
+  return (
+    <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 px-4 pb-3 pt-6 bg-gradient-to-t from-slate-50 via-slate-50/90 to-transparent pointer-events-none md:static md:p-0 md:bg-none md:mt-5">
+      <div className="max-w-6xl mx-auto pointer-events-auto md:flex md:justify-end">{children}</div>
+    </div>
+  );
+}
+
 export function money(amount) {
   const n = typeof amount === "number" ? amount : parseFloat(amount);
   if (isNaN(n)) return "$0.00";

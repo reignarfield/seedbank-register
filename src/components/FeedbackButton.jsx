@@ -41,7 +41,7 @@ export default function FeedbackButton() {
         onClick={() => setOpen(true)}
         aria-label="Send a suggestion"
         title="Got a suggestion? Tell us"
-        className="fixed bottom-4 right-4 z-40 w-12 h-12 rounded-full bg-slate-900 text-white shadow-lg hover:bg-slate-700 flex items-center justify-center transition-colors"
+        className="fixed right-4 bottom-[calc(72px+env(safe-area-inset-bottom))] md:bottom-4 z-40 w-11 h-11 rounded-full bg-slate-900 text-white shadow-lg hover:bg-slate-700 flex items-center justify-center transition-colors"
       >
         <MessageSquarePlus size={20} />
       </button>

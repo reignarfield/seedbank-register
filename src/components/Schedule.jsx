@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, CalendarDays, Loader2, X, Check, Ban, Archive, AlertTriangle, Receipt } from "lucide-react";
-import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
-import { formatDate, todayStr, nextDueDate } from "../lib/dates";
+import { Plus, CalendarDays, Loader2, X, AlertTriangle, Archive, Ban } from "lucide-react";
+import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, PrimaryBar, money } from "./ui";
+import { formatDate, todayStr, addDays, nextDueDate } from "../lib/dates";
+import { customersDue } from "../lib/today";
 import { PRICE_GROUPS } from "../lib/pricing";
 
 // A quote here (scheduling straight off an accepted quote) pre-fills price
@@ -20,10 +21,7 @@ function emptyJob(customerId = "", date = todayStr(), quote = null) {
 }
 
 // A rough "what does this usually cost" note next to the price field once a
-// job type is picked - a reference only, not an autofill, since the real
-// price still varies per property. Only plain "$123" style prices count
-// toward the range; "Quote required" / per-m² items are skipped rather than
-// producing a misleading guide.
+// job type is picked - a reference only, not an autofill.
 function priceGuide(jobType) {
   const group = PRICE_GROUPS.find((g) => g.title === jobType);
   if (!group) return null;
@@ -33,13 +31,14 @@ function priceGuide(jobType) {
   return min === max ? `Guide: $${min}` : `Guide: $${min} - $${max}`;
 }
 
-export function JobForm({ initial, customers, onCancel, onSave, saving }) {
+// Everything that isn't the one main action on a row lives in here: cancel
+// and archive for a booked job. The row itself stays to one labelled button.
+export function JobForm({ initial, customers, onCancel, onSave, saving, onCancelJob, onArchive }) {
   const [form, setForm] = useState(initial);
   useEffect(() => setForm(initial), [initial]);
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
   const canSave = !!form.customer_id && !!form.scheduled_date;
   const isEdit = !!form.id;
-  // A stray tap outside the box shouldn't silently throw away typed fields.
   const isDirty = JSON.stringify(form) !== JSON.stringify(initial);
   const dismiss = () => {
     if (isDirty && !confirm("Discard this job?")) return;
@@ -80,6 +79,20 @@ export function JobForm({ initial, customers, onCancel, onSave, saving }) {
           <Field label="Notes">
             <TextArea rows={2} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} placeholder="Anything the job needs" />
           </Field>
+          {isEdit && (onCancelJob || onArchive) && (
+            <div className="flex items-center gap-2 pt-1">
+              {form.status === "scheduled" && onCancelJob && (
+                <Button variant="secondary" className="!px-3 !py-1.5 !text-xs" onClick={() => { if (confirm("Cancel this job? It stays on record as cancelled.")) onCancelJob(form); }}>
+                  <Ban size={13} /> Cancel job
+                </Button>
+              )}
+              {onArchive && (
+                <Button variant="secondary" className="!px-3 !py-1.5 !text-xs" onClick={() => { if (confirm("Archive this job? It leaves the list but stays in the records.")) onArchive(form); }} title="Hides it, keeps the record">
+                  <Archive size={13} /> Archive
+                </Button>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
           <div className="flex-1" />
@@ -119,15 +132,7 @@ export function CompleteNoPricePrompt({ job, customerName, onCancel, onConfirm }
           Add one now, or skip and invoice it later yourself.
         </p>
         <Field label="Price (optional)">
-          <TextInput
-            type="number"
-            step="0.01"
-            inputMode="decimal"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="0.00"
-            autoFocus
-          />
+          <TextInput type="number" step="0.01" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" autoFocus />
         </Field>
         <div className="flex items-center gap-2 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => finish(false)} disabled={saving}>
@@ -145,11 +150,33 @@ export function CompleteNoPricePrompt({ job, customerName, onCancel, onConfirm }
   );
 }
 
-export default function Schedule({ customers, jobs, onSave, onComplete, onCancelJob, onDelete, onRaiseInvoice, draftCustomer, draftQuote, onDraftConsumed }) {
+function dayLabel(dateStr, today) {
+  if (dateStr === today) return "Today";
+  if (dateStr === addDays(today, 1)) return "Tomorrow";
+  if (dateStr < today) return `${formatDate(dateStr)} · overdue`;
+  return formatDate(dateStr);
+}
+
+export default function Schedule({
+  customers,
+  jobs,
+  quotes = [],
+  settings = {},
+  onSave,
+  onComplete,
+  onCancelJob,
+  onDelete,
+  onRaiseInvoice,
+  onConvertAndSchedule,
+  draftCustomer,
+  draftQuote,
+  onDraftConsumed,
+}) {
   const [filter, setFilter] = useState("upcoming");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [completingNoPrice, setCompletingNoPrice] = useState(null);
+  const today = todayStr();
 
   useEffect(() => {
     if (draftCustomer) {
@@ -161,15 +188,29 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
   }, [draftCustomer]);
 
   const customerById = (id) => customers.find((c) => c.id === id);
-  const today = todayStr();
 
-  const visible = useMemo(() => {
+  // Grouped by day so the list reads as a diary, not a spreadsheet.
+  const groups = useMemo(() => {
     let list = jobs;
     if (filter === "upcoming") list = jobs.filter((j) => j.status === "scheduled");
-    if (filter === "completed") list = jobs.filter((j) => j.status === "completed");
-    if (filter === "cancelled") list = jobs.filter((j) => j.status === "cancelled");
-    return [...list].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
+    if (filter === "done") list = jobs.filter((j) => j.status === "completed");
+    const sorted = [...list].sort((a, b) => (filter === "done" ? b.scheduled_date.localeCompare(a.scheduled_date) : a.scheduled_date.localeCompare(b.scheduled_date)));
+    const m = new Map();
+    for (const j of sorted) {
+      if (!m.has(j.scheduled_date)) m.set(j.scheduled_date, []);
+      m.get(j.scheduled_date).push(j);
+    }
+    return [...m.entries()];
   }, [jobs, filter]);
+
+  // Work that should be booked but isn't: recurring customers who are due
+  // with nothing in the diary, and accepted quotes with no job against them.
+  const needsBooking = useMemo(() => {
+    const booked = new Set(jobs.filter((j) => j.status === "scheduled" && j.scheduled_date >= today).map((j) => j.customer_id));
+    const due = customersDue(customers, settings.due_soon_days ?? 7).filter(({ customer }) => !booked.has(customer.id));
+    const quoted = quotes.filter((q) => q.status === "accepted" && !jobs.some((j) => j.quote_id === q.id));
+    return { due, quoted };
+  }, [customers, jobs, quotes, settings.due_soon_days, today]);
 
   const save = async (form) => {
     setSaving(true);
@@ -183,15 +224,7 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
   };
 
   const hasPrice = (j) => j.price != null && Number(j.price) > 0;
-
-  const requestComplete = (j) => {
-    if (hasPrice(j)) {
-      onComplete(j);
-    } else {
-      setCompletingNoPrice(j);
-    }
-  };
-
+  const requestComplete = (j) => (hasPrice(j) ? onComplete(j) : setCompletingNoPrice(j));
   const confirmCompleteNoPrice = async (price) => {
     await onComplete({ ...completingNoPrice, price });
     setCompletingNoPrice(null);
@@ -199,14 +232,16 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
 
   const FILTERS = [
     { id: "upcoming", label: "Upcoming" },
-    { id: "completed", label: "Completed" },
-    { id: "cancelled", label: "Cancelled" },
+    { id: "done", label: "Done" },
     { id: "all", label: "All" },
   ];
 
+  const hasNeeds = needsBooking.due.length + needsBooking.quoted.length > 0;
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-32 md:pb-6">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h1 className="text-2xl font-semibold text-slate-900">Schedule</h1>
         <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
           {FILTERS.map((f) => (
             <button
@@ -218,70 +253,117 @@ export default function Schedule({ customers, jobs, onSave, onComplete, onCancel
             </button>
           ))}
         </div>
-        <div className="flex-1" />
-        <Button onClick={() => setEditing(emptyJob())} className="shrink-0" disabled={customers.length === 0}>
-          <Plus size={16} strokeWidth={2.5} /> New job
-        </Button>
       </div>
-      {customers.length === 0 && <p className="text-xs text-slate-400 mb-3">Add a customer first before scheduling a job.</p>}
 
-      {visible.length === 0 ? (
-        <EmptyState icon={CalendarDays} title="No jobs here yet." />
+      {groups.length === 0 ? (
+        <EmptyState icon={CalendarDays} title={customers.length === 0 ? "Add a customer first, then book their first job." : "Nothing booked. Tap New job."} />
       ) : (
-        <div className="space-y-2">
-          {visible.map((j) => {
-            const c = customerById(j.customer_id);
-            const isPast = j.status === "scheduled" && j.scheduled_date < today;
-            return (
-              <Card key={j.id} className={`px-4 py-3 ${isPast ? "border-amber-200" : ""}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <button onClick={() => setEditing(j)} className="min-w-0 flex-1 text-left">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="font-medium text-slate-900 truncate">{c?.name || "Unknown customer"}</span>
-                      <StatusPill status={j.status} />
-                      {j.job_type && <span className="text-xs text-slate-400 border border-slate-200 rounded-full px-2 py-0.5">{j.job_type}</span>}
-                      {isPast && <span className="text-xs text-amber-600 font-medium">Overdue to complete</span>}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5 truncate">{c?.address || ""}</div>
-                  </button>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-medium text-slate-700">{formatDate(j.scheduled_date)}</div>
-                    {hasPrice(j) ? (
-                      <div className="text-xs text-slate-400 tabular-nums">{money(j.price)}</div>
-                    ) : j.status === "scheduled" ? (
-                      <div className="text-xs text-amber-600">No price set</div>
-                    ) : j.status === "completed" ? (
-                      <div className="text-xs text-amber-600">No invoice raised</div>
-                    ) : null}
-                  </div>
-                  {j.status === "scheduled" && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button title="Mark complete" onClick={() => requestComplete(j)} className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50">
-                        <Check size={16} />
-                      </button>
-                      <button title="Cancel job" onClick={() => onCancelJob(j)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100">
-                        <Ban size={16} />
-                      </button>
-                    </div>
-                  )}
-                  {j.status === "completed" && !hasPrice(j) && (
-                    <button title="Invoice now" onClick={() => onRaiseInvoice(j)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 shrink-0">
-                      <Receipt size={16} />
-                    </button>
-                  )}
-                  {j.status !== "scheduled" && (
-                    <button title="Archive - hides it, keeps the record" onClick={() => confirm("Archive this job? It stays in the records but leaves this list.") && onDelete(j.id)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 shrink-0">
-                      <Archive size={16} />
-                    </button>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+        <div className="space-y-5">
+          {groups.map(([date, list]) => (
+            <div key={date}>
+              <div className={`text-xs font-semibold uppercase tracking-[0.14em] mb-2 px-1 ${date < today && filter !== "done" ? "text-amber-600" : "text-slate-400"}`}>{dayLabel(date, today)}</div>
+              <div className="space-y-2">
+                {list.map((j) => {
+                  const c = customerById(j.customer_id);
+                  const isPast = j.status === "scheduled" && j.scheduled_date < today;
+                  return (
+                    <Card key={j.id} className={`px-4 py-3 ${isPast ? "border-amber-200" : ""}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <button onClick={() => setEditing(j)} className="min-w-0 flex-1 text-left">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span className="font-medium text-slate-900 truncate">{c?.name || "Unknown customer"}</span>
+                            {j.status !== "scheduled" && <StatusPill status={j.status} />}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5 truncate">
+                            {[j.job_type, c?.address].filter(Boolean).join(" · ") || "—"}
+                          </div>
+                        </button>
+                        <div className="text-right shrink-0">
+                          {hasPrice(j) ? (
+                            <div className="text-sm font-semibold tabular-nums text-slate-900">{money(j.price)}</div>
+                          ) : j.status === "scheduled" ? (
+                            <div className="text-xs text-amber-600">No price</div>
+                          ) : null}
+                        </div>
+                        {j.status === "scheduled" && (
+                          <Button className="!px-3 !py-2 !text-xs shrink-0" onClick={() => requestComplete(j)}>Mark done</Button>
+                        )}
+                        {j.status === "completed" && !hasPrice(j) && (
+                          <Button variant="secondary" className="!px-3 !py-2 !text-xs shrink-0" onClick={() => onRaiseInvoice(j)}>Invoice it</Button>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {editing && <JobForm initial={editing} customers={customers} onCancel={() => setEditing(null)} onSave={save} saving={saving} />}
+      {filter !== "done" && hasNeeds && (
+        <div className="mt-8">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 mb-2 px-1">Needs booking</div>
+          <div className="space-y-2">
+            {needsBooking.due.map(({ customer: c, status }) => {
+              const due = nextDueDate(c);
+              return (
+                <Card key={c.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="font-medium text-slate-900 truncate">{c.name}</span>
+                        <StatusPill status={status} />
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">{status === "overdue" ? "Was due" : "Due"} {formatDate(due)} · every {c.frequency_weeks} weeks</div>
+                    </div>
+                    <Button className="!px-3 !py-2 !text-xs shrink-0" onClick={() => setEditing(emptyJob(c.id, due >= today ? due : today))}>Book it</Button>
+                  </div>
+                </Card>
+              );
+            })}
+            {needsBooking.quoted.map((q) => {
+              const c = q.customer_id ? customerById(q.customer_id) : null;
+              return (
+                <Card key={q.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span className="font-medium text-slate-900 truncate">{c?.name || q.contact_name || "Unnamed contact"}</span>
+                        <StatusPill status="accepted" />
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5 truncate">{money(q.amount)} quote accepted{q.description ? ` · ${q.description}` : ""}</div>
+                    </div>
+                    {c ? (
+                      <Button className="!px-3 !py-2 !text-xs shrink-0" onClick={() => setEditing(emptyJob(c.id, today, q))}>Book it</Button>
+                    ) : (
+                      <Button className="!px-3 !py-2 !text-xs shrink-0" onClick={() => onConvertAndSchedule?.(q)}>Add & book</Button>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <PrimaryBar>
+        <Button className="w-full md:w-auto !py-3 md:!py-2" onClick={() => setEditing(emptyJob())} disabled={customers.length === 0}>
+          <Plus size={16} strokeWidth={2.5} /> New job
+        </Button>
+      </PrimaryBar>
+
+      {editing && (
+        <JobForm
+          initial={editing}
+          customers={customers}
+          onCancel={() => setEditing(null)}
+          onSave={save}
+          saving={saving}
+          onCancelJob={async (j) => { await onCancelJob(j); setEditing(null); }}
+          onArchive={async (j) => { await onDelete(j.id); setEditing(null); }}
+        />
+      )}
 
       {completingNoPrice && (
         <CompleteNoPricePrompt

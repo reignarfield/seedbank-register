@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, FileText, Loader2, X, Archive, Send, ThumbsUp, ThumbsDown, CalendarPlus, UserPlus } from "lucide-react";
-import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, money } from "./ui";
-import { formatDate, todayStr } from "../lib/dates";
+import { Plus, FileText, Loader2, X, Archive, ThumbsDown } from "lucide-react";
+import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, PrimaryBar, money } from "./ui";
+import { formatDate } from "../lib/dates";
 
 function emptyQuote(overrides = {}) {
   return {
@@ -18,7 +18,9 @@ function emptyQuote(overrides = {}) {
   };
 }
 
-function QuoteForm({ initial, customers, onCancel, onSave, onDelete, saving }) {
+// Declining and archiving live in here; the row keeps the one action that
+// moves the quote forward.
+function QuoteForm({ initial, customers, onCancel, onSave, onDelete, onDecline, saving }) {
   const [form, setForm] = useState(initial);
   useEffect(() => setForm(initial), [initial]);
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -68,13 +70,16 @@ function QuoteForm({ initial, customers, onCancel, onSave, onDelete, saving }) {
               <TextInput type="date" value={form.valid_until || ""} onChange={(e) => set("valid_until", e.target.value)} />
             </Field>
           </div>
+          {isEdit && (
+            <div className="flex items-center gap-2 pt-1">
+              {form.status === "sent" && (
+                <Button variant="secondary" className="!px-3 !py-1.5 !text-xs" onClick={() => onDecline(form)}><ThumbsDown size={13} /> They declined</Button>
+              )}
+              <Button variant="secondary" className="!px-3 !py-1.5 !text-xs" onClick={() => onDelete(form)}><Archive size={13} /> Archive</Button>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
-          {isEdit && onDelete && (
-            <Button variant="danger" onClick={() => onDelete(form)} className="!px-3">
-              <Archive size={14} /> Archive
-            </Button>
-          )}
           <div className="flex-1" />
           <Button variant="secondary" onClick={onCancel}>Cancel</Button>
           <Button onClick={() => onSave(form)} disabled={!canSave || saving}>
@@ -87,7 +92,7 @@ function QuoteForm({ initial, customers, onCancel, onSave, onDelete, saving }) {
 }
 
 export default function Quotes({ quotes, customers, onSave, onDelete, onScheduleFromQuote, onConvertAndSchedule, draft, onDraftConsumed }) {
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("open");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -102,7 +107,9 @@ export default function Quotes({ quotes, customers, onSave, onDelete, onSchedule
   const customerById = (id) => customers.find((c) => c.id === id);
 
   const visible = useMemo(() => {
-    const list = filter === "all" ? quotes : quotes.filter((q) => q.status === filter);
+    let list = quotes;
+    if (filter === "open") list = quotes.filter((q) => q.status === "draft" || q.status === "sent" || q.status === "accepted");
+    if (filter === "closed") list = quotes.filter((q) => q.status === "declined");
     return [...list].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
   }, [quotes, filter]);
 
@@ -117,30 +124,34 @@ export default function Quotes({ quotes, customers, onSave, onDelete, onSchedule
     }
   };
 
-  const setStatus = async (quote, status) => {
-    await onSave({ ...quote, status });
+  const setStatus = async (quote, status) => onSave({ ...quote, status });
+
+  // The one thing that moves this quote forward, by where it is.
+  const nextAction = (q, c) => {
+    if (q.status === "draft") return { label: "Mark sent", onClick: () => setStatus(q, "sent"), primary: false };
+    if (q.status === "sent") return { label: "Accepted", onClick: () => setStatus(q, "accepted"), primary: true };
+    if (q.status === "accepted") return c ? { label: "Book it", onClick: () => onScheduleFromQuote(c, q), primary: true } : { label: "Add & book", onClick: () => onConvertAndSchedule(q), primary: true };
+    return null;
   };
 
-  const FILTERS = ["all", "draft", "sent", "accepted", "declined"];
+  const FILTERS = [
+    { id: "open", label: "Open" },
+    { id: "closed", label: "Declined" },
+    { id: "all", label: "All" },
+  ];
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
-        <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 overflow-x-auto">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize whitespace-nowrap transition-colors ${filter === f ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-        <div className="flex-1" />
-        <Button onClick={() => setEditing(emptyQuote())} className="shrink-0">
-          <Plus size={16} strokeWidth={2.5} /> New quote
-        </Button>
+      <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 mb-4 w-fit">
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${filter === f.id ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {visible.length === 0 ? (
@@ -150,6 +161,7 @@ export default function Quotes({ quotes, customers, onSave, onDelete, onSchedule
           {visible.map((q) => {
             const c = q.customer_id ? customerById(q.customer_id) : null;
             const name = c?.name || q.contact_name || "Unnamed contact";
+            const a = nextAction(q, c);
             return (
               <Card key={q.id} className="px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
@@ -158,43 +170,12 @@ export default function Quotes({ quotes, customers, onSave, onDelete, onSchedule
                       <span className="font-medium text-slate-900 truncate">{name}</span>
                       <StatusPill status={q.status} />
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5 truncate">{q.description || "No description"}</div>
+                    <div className="text-xs text-slate-500 mt-0.5 truncate">{q.description || "No description"}{q.valid_until ? ` · valid to ${formatDate(q.valid_until)}` : ""}</div>
                   </button>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-semibold tabular-nums text-slate-900">{money(q.amount)}</div>
-                    {q.valid_until && <div className="text-xs text-slate-400">valid to {formatDate(q.valid_until)}</div>}
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {q.status === "draft" && (
-                      <button title="Mark sent" onClick={() => setStatus(q, "sent")} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50">
-                        <Send size={15} />
-                      </button>
-                    )}
-                    {q.status === "sent" && (
-                      <>
-                        <button title="Accepted" onClick={() => setStatus(q, "accepted")} className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50">
-                          <ThumbsUp size={15} />
-                        </button>
-                        <button title="Declined" onClick={() => setStatus(q, "declined")} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50">
-                          <ThumbsDown size={15} />
-                        </button>
-                      </>
-                    )}
-                    {q.status === "accepted" && c && (
-                      <button title="Schedule job" onClick={() => onScheduleFromQuote(c, q)} className="p-2 rounded-lg text-blue-600 hover:bg-blue-50">
-                        <CalendarPlus size={15} />
-                      </button>
-                    )}
-                    {q.status === "accepted" && !c && (
-                      <button
-                        title="Add as customer and schedule"
-                        onClick={() => onConvertAndSchedule(q)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 text-xs font-medium"
-                      >
-                        <UserPlus size={14} /> Add &amp; schedule
-                      </button>
-                    )}
-                  </div>
+                  <div className="text-sm font-semibold tabular-nums text-slate-900 shrink-0">{money(q.amount)}</div>
+                  {a && (
+                    <Button variant={a.primary ? "primary" : "secondary"} className="!px-3 !py-2 !text-xs shrink-0" onClick={a.onClick}>{a.label}</Button>
+                  )}
                 </div>
               </Card>
             );
@@ -202,12 +183,19 @@ export default function Quotes({ quotes, customers, onSave, onDelete, onSchedule
         </div>
       )}
 
+      <PrimaryBar>
+        <Button className="w-full md:w-auto !py-3 md:!py-2" onClick={() => setEditing(emptyQuote())}>
+          <Plus size={16} strokeWidth={2.5} /> New quote
+        </Button>
+      </PrimaryBar>
+
       {editing && (
         <QuoteForm
           initial={editing}
           customers={customers}
           onCancel={() => setEditing(null)}
           onSave={save}
+          onDecline={async (q) => { await setStatus(q, "declined"); setEditing(null); }}
           onDelete={async (q) => {
             if (!confirm("Archive this quote? It leaves the list but stays on record.")) return;
             setSaving(true);

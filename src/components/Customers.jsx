@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Search, Plus, Users, Loader2, Archive, X, History } from "lucide-react";
-import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState } from "./ui";
+import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, PrimaryBar } from "./ui";
 import { dueStatus, formatDate, nextDueDate } from "../lib/dates";
 import { customersLapsed } from "../lib/today";
 import PlaceGlance from "./PlaceGlance";
+import Leads from "./Leads";
+
+// People. Three segments: the customers he serves, the enquiries he hasn't
+// served yet (they become customers here, so they live here), and the
+// one-offs worth a call. Search is always visible - it's a list of people.
 
 const FREQUENCY_OPTIONS = [
   { value: "", label: "One-off (not recurring)" },
@@ -50,14 +55,14 @@ function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
             <PlaceGlance address={form.address} lat={form.lat} lng={form.lng} onCoords={(lat, lng) => setForm((f) => ({ ...f, lat, lng }))} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Cleaning frequency">
+            <Field label="How often">
               <Select value={form.frequency_weeks ?? ""} onChange={(e) => set("frequency_weeks", e.target.value)}>
                 {FREQUENCY_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </Select>
             </Field>
-            <Field label="Last service date">
+            <Field label="Last visit">
               <TextInput type="date" value={form.last_service_date || ""} onChange={(e) => set("last_service_date", e.target.value)} />
             </Field>
           </div>
@@ -86,13 +91,15 @@ function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
               </div>
             </Field>
           )}
+          {isEdit && onDelete && (
+            <div className="pt-1">
+              <Button variant="secondary" className="!px-3 !py-1.5 !text-xs" onClick={() => onDelete(form)} title="Hides them from every list. Jobs and invoices are kept - they're records.">
+                <Archive size={13} /> Archive customer
+              </Button>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-100">
-          {isEdit && onDelete && (
-            <Button variant="danger" onClick={() => onDelete(form)} className="!px-3" title="Hides them from every list. Jobs and invoices are kept - they're records.">
-              <Archive size={14} /> Archive
-            </Button>
-          )}
           <div className="flex-1" />
           <Button variant="secondary" onClick={onCancel}>Cancel</Button>
           <Button onClick={() => onSave(form)} disabled={!canSave || saving}>
@@ -104,28 +111,46 @@ function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
   );
 }
 
-export default function Customers({ customers, jobs, customerNotes = [], onSave, onDelete, draft, onDraftConsumed, lapsedDays = 180, dueSoonDays = 7 }) {
+export default function Customers({
+  tab,
+  onTab,
+  customers,
+  jobs,
+  customerNotes = [],
+  onSave,
+  onDelete,
+  draft,
+  onDraftConsumed,
+  lapsedDays = 180,
+  dueSoonDays = 7,
+  leads = [],
+  onSetLeadStatus,
+  onDeleteLead,
+  onConvertLead,
+  onCreateQuote,
+}) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [showLapsed, setShowLapsed] = useState(false);
 
   const lapsed = useMemo(() => customersLapsed(customers, lapsedDays), [customers, lapsedDays]);
+  const newEnquiries = useMemo(() => leads.filter((l) => l.status === "new").length, [leads]);
 
   useEffect(() => {
     if (draft) {
       setEditing(draft);
+      onTab("customers");
       onDraftConsumed();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
 
   const filtered = useMemo(() => {
-    const base = showLapsed ? lapsed : customers;
+    const base = tab === "reach" ? lapsed : customers;
     if (!query.trim()) return base;
     const q = query.toLowerCase();
     return base.filter((c) => [c.name, c.address, c.phone, c.email].filter(Boolean).some((v) => v.toLowerCase().includes(q)));
-  }, [customers, lapsed, showLapsed, query]);
+  }, [customers, lapsed, tab, query]);
 
   const jobCountByCustomer = useMemo(() => {
     const m = new Map();
@@ -155,79 +180,82 @@ export default function Customers({ customers, jobs, customerNotes = [], onSave,
     }
   };
 
+  const SEGMENTS = [
+    { id: "customers", label: "Customers" },
+    { id: "enquiries", label: newEnquiries > 0 ? `Enquiries · ${newEnquiries}` : "Enquiries" },
+    { id: "reach", label: lapsed.length > 0 ? `Reach out · ${lapsed.length}` : "Reach out" },
+  ];
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, address, phone, email..." className="!pl-9" />
-        </div>
-        <Button onClick={() => setEditing(emptyCustomer())} className="shrink-0">
-          <Plus size={16} strokeWidth={2.5} /> New customer
-        </Button>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-32 md:pb-6">
+      <div className="mb-4">
+        <h1 className="text-2xl font-semibold text-slate-900">Customers</h1>
       </div>
 
-      <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 mb-4 w-fit">
-        <button
-          onClick={() => setShowLapsed(false)}
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${!showLapsed ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
-        >
-          All customers
-        </button>
-        <button
-          onClick={() => setShowLapsed(true)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${showLapsed ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
-        >
-          <History size={13} /> Reach out again {lapsed.length > 0 && `(${lapsed.length})`}
-        </button>
+      <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 mb-4 w-fit max-w-full overflow-x-auto">
+        {SEGMENTS.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => onTab(s.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${tab === s.id ? "bg-blue-600 text-white" : "text-slate-500 hover:text-blue-700"}`}
+          >
+            {s.id === "reach" && <History size={13} />}
+            {s.label}
+          </button>
+        ))}
       </div>
 
-      {showLapsed && (
-        <p className="text-xs text-slate-400 mb-3 px-1">
-          Active, one-off customers not serviced in {Math.round(lapsedDays / 30)}+ months — worth a call to see if they want another one.
-        </p>
-      )}
-
-      <div className="text-xs uppercase tracking-[0.14em] text-slate-400 mb-2 px-1">
-        {filtered.length} {filtered.length === 1 ? "customer" : "customers"}
-      </div>
-
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={showLapsed ? History : Users}
-          title={showLapsed ? "Nobody's lapsed right now." : customers.length === 0 ? "No customers yet." : "No customers match your search."}
-        />
+      {tab === "enquiries" ? (
+        <Leads embedded leads={leads} onSetStatus={onSetLeadStatus} onDelete={onDeleteLead} onConvertToCustomer={onConvertLead} onCreateQuote={onCreateQuote} />
       ) : (
-        <div className="space-y-2">
-          {filtered.map((c) => {
-            const status = dueStatus(c, { soonDays: dueSoonDays });
-            const due = nextDueDate(c);
-            return (
-              <Card key={c.id} className="px-4 py-3 hover:border-blue-300 transition-colors cursor-pointer" >
-                <button onClick={() => setEditing(c)} className="w-full flex items-center justify-between gap-3 text-left">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="font-medium text-slate-900 truncate">{c.name}</span>
-                      <StatusPill status={c.status} />
-                      {status && <StatusPill status={status} />}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5 truncate">{c.address || "No address on file"}</div>
-                  </div>
-                  <div className="hidden sm:block text-right shrink-0">
-                    {showLapsed ? (
-                      <div className="text-xs text-amber-600">Last clean {formatDate(c.last_service_date)}</div>
-                    ) : (
-                      <>
-                        <div className="text-xs text-slate-400">{c.frequency_weeks ? `Every ${c.frequency_weeks}w` : "One-off"}</div>
-                        <div className="text-xs text-slate-500">{due ? `Next due ${formatDate(due)}` : jobCountByCustomer.get(c.id) ? `${jobCountByCustomer.get(c.id)} jobs` : "No jobs yet"}</div>
-                      </>
-                    )}
-                  </div>
-                </button>
-              </Card>
-            );
-          })}
-        </div>
+        <>
+          <div className="relative mb-3">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, address, phone" className="!pl-9" />
+          </div>
+
+          {tab === "reach" && (
+            <p className="text-xs text-slate-400 mb-3 px-1">
+              Active, one-off customers not seen in {Math.round(lapsedDays / 30)}+ months — worth a call to see if they want another one.
+            </p>
+          )}
+
+          {filtered.length === 0 ? (
+            <EmptyState
+              icon={tab === "reach" ? History : Users}
+              title={tab === "reach" ? "Nobody's lapsed right now." : customers.length === 0 ? "No customers yet - tap New customer." : "No customers match your search."}
+            />
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((c) => {
+                const status = dueStatus(c, { soonDays: dueSoonDays });
+                const due = nextDueDate(c);
+                return (
+                  <Card key={c.id} className="px-4 py-3 hover:border-blue-300 transition-colors">
+                    <button onClick={() => setEditing(c)} className="w-full flex items-center justify-between gap-3 text-left">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-medium text-slate-900 truncate">{c.name}</span>
+                          {c.status !== "active" && <StatusPill status={c.status} />}
+                          {status && status !== "scheduled" && <StatusPill status={status} />}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5 truncate">
+                          {[c.address, tab === "reach" ? `last visit ${formatDate(c.last_service_date)}` : c.frequency_weeks ? `every ${c.frequency_weeks}w${due ? ` · next ${formatDate(due)}` : ""}` : jobCountByCustomer.get(c.id) ? `${jobCountByCustomer.get(c.id)} jobs` : "one-off"].filter(Boolean).join(" · ")}
+                        </div>
+                      </div>
+                    </button>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          <PrimaryBar>
+            <Button className="w-full md:w-auto !py-3 md:!py-2" onClick={() => setEditing(emptyCustomer())}>
+              <Plus size={16} strokeWidth={2.5} /> New customer
+            </Button>
+          </PrimaryBar>
+        </>
       )}
 
       {editing && (

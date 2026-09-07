@@ -3,11 +3,7 @@ import {
   Phone,
   Navigation,
   Check,
-  LogOut,
-  ArrowUpRight,
   CalendarCheck,
-  Receipt,
-  Inbox,
   AlertTriangle,
   Clock,
   ChevronUp,
@@ -21,7 +17,6 @@ import {
   CloudRain,
   MapPin,
   PartyPopper,
-  FlaskConical,
   KeyRound,
 } from "lucide-react";
 import { Card, Button, EmptyState, TextInput, TextArea, money } from "./ui";
@@ -298,11 +293,6 @@ export default function TodaySimple({
   onStartDay,
   invoices,
   leads,
-  demoMode,
-  onEnterDemo,
-  onExitDemo,
-  onLogout,
-  onGoAdvanced,
 }) {
   const [completingNoPrice, setCompletingNoPrice] = useState(null);
   const [reschedulingJob, setReschedulingJob] = useState(null);
@@ -380,54 +370,8 @@ export default function TodaySimple({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 overflow-hidden">
-              <img src="/tydie-icon-48.png" alt="" width={36} height={36} className="w-full h-full object-cover" />
-            </div>
-            <div className="font-semibold text-lg text-slate-900 tracking-tight whitespace-nowrap truncate">Tydie Cleaning</div>
-            {demoMode && (
-              <button
-                onClick={onExitDemo}
-                title="Showing demo data - tap to go back to real data"
-                className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded-full px-2 py-0.5 transition-colors"
-              >
-                DEMO
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            {!demoMode && (
-              <button
-                onClick={onEnterDemo}
-                title="Switch to a sample business to explore or show the app - nothing real is touched"
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded-full text-sm font-medium text-slate-400 hover:text-amber-600 transition-colors whitespace-nowrap shrink-0"
-              >
-                <FlaskConical size={14} strokeWidth={2.25} />
-                <span className="hidden sm:inline">Demo</span>
-              </button>
-            )}
-            <button
-              onClick={() => onGoAdvanced()}
-              className="flex items-center gap-1.5 px-2 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors whitespace-nowrap shrink-0"
-            >
-              Full app <ArrowUpRight size={14} strokeWidth={2.25} />
-            </button>
-            <button
-              onClick={onLogout}
-              title="Sign out"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700 transition-colors"
-            >
-              <LogOut size={14} strokeWidth={2.25} />
-              <span className="hidden sm:inline">Sign out</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+    <div>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-28 md:pb-6 space-y-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Today</h1>
           <p className="text-sm text-slate-500 mt-1">

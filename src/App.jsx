@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { todayStr, addDays, formatDate } from "./lib/dates";
 import { liveRows } from "./lib/today";
 import { isDemoMode, setDemoMode } from "./lib/dataMode";
@@ -48,18 +48,15 @@ import {
 } from "./lib/api";
 import NavBar from "./components/NavBar";
 import TodaySimple from "./components/TodaySimple";
-import Dashboard from "./components/Dashboard";
 import Customers from "./components/Customers";
 import Schedule from "./components/Schedule";
-import Billing from "./components/Billing";
-import Leads from "./components/Leads";
+import Money from "./components/Money";
 import Dev from "./components/Dev";
 import Settings from "./components/Settings";
 import UsageTimeline from "./components/UsageTimeline";
 import FeedbackButton from "./components/FeedbackButton";
 import { startSession, trackScreen, attachTapListener, flush as flushTracking, setTrackedUser } from "./lib/track";
 import { snoozeUntil } from "./lib/todo";
-import Mileage from "./components/Mileage";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
 import PasswordRecovery from "./components/PasswordRecovery";
@@ -100,8 +97,11 @@ function currentPosition(trips, customers, settings) {
 }
 
 export default function App() {
-  const [view, setView] = useState("dashboard");
-  const [mode, setMode] = useState("simple"); // "simple" (Today, one-tap) | "advanced" (full app)
+  // One app, five tabs. Today is the first and the default; the builder
+  // screens (usage, dev, customerpage) sit under Settings.
+  const [view, setView] = useState("today");
+  const [moneyTab, setMoneyTab] = useState("invoices");
+  const [customersTab, setCustomersTab] = useState("customers");
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -216,8 +216,8 @@ export default function App() {
   }, [session]);
   useEffect(() => {
     if (!session) return;
-    trackScreen(mode === "simple" ? "today" : view);
-  }, [session, mode, view]);
+    trackScreen(view === "money" ? `money/${moneyTab}` : view === "customers" ? `customers/${customersTab}` : view);
+  }, [session, view, moneyTab, customersTab]);
 
   const handleLogout = async () => {
     await flushTracking();
@@ -233,8 +233,7 @@ export default function App() {
     setTrips([]);
     setCustomerNotes([]);
     setActivity([]);
-    setView("dashboard");
-    setMode("simple");
+    setView("today");
   };
 
   // Flip the whole data layer between the real database and the in-memory
@@ -242,7 +241,7 @@ export default function App() {
   const toggleDemoMode = async (on) => {
     setDemoMode(on);
     setDemoModeState(on);
-    setView("dashboard");
+    setView("today");
     await reload();
   };
 
@@ -341,27 +340,23 @@ export default function App() {
     switch (action.action) {
       case "schedule":
         scheduleForCustomer(item.customer);
-        setMode("advanced");
         break;
       case "scheduleQuote":
         scheduleForCustomer(item.customer, item.ref);
-        setMode("advanced");
         break;
       case "convertQuote":
         await convertQuoteToCustomerAndSchedule(item.ref);
-        setMode("advanced");
         break;
       case "raiseInvoice":
         raiseInvoiceForJob(item.ref);
-        setMode("advanced");
         break;
       case "invoice":
-        setView("billing");
-        setMode("advanced");
+        setMoneyTab("invoices");
+        setView("money");
         break;
       case "leads":
-        setView("leads");
-        setMode("advanced");
+        setCustomersTab("enquiries");
+        setView("customers");
         break;
       case "markPaid":
         await markPaid(item.ref);
@@ -478,12 +473,14 @@ export default function App() {
   const convertLeadToCustomer = async (lead) => {
     setCustomerDraft(emptyCustomerDraft({ name: lead.name, phone: lead.phone || "", email: lead.email || "", address: lead.address || "", notes: lead.message || "" }));
     await setLeadStatus(lead, "won");
+    setCustomersTab("customers");
     setView("customers");
   };
   const createQuoteFromLead = async (lead) => {
     setQuoteDraft({ lead_id: lead.id, contact_name: lead.name, contact_email: lead.email || "", contact_phone: lead.phone || "", description: lead.message || "" });
     if (lead.status === "new") await setLeadStatus(lead, "quoted");
-    setView("billing");
+    setMoneyTab("quotes");
+    setView("money");
   };
 
   // ---- Cross-module handoffs ----
@@ -526,9 +523,10 @@ export default function App() {
       customer_id: job.customer_id,
       job_id: job.id,
       description: job.notes || "",
-      due_date: addDays(todayStr(), 14),
+      due_date: addDays(todayStr(), settings.invoice_due_days ?? 14),
     });
-    setView("billing");
+    setMoneyTab("invoices");
+    setView("money");
   };
 
   const newLeadCount = leads.filter((l) => l.status === "new").length;
@@ -584,89 +582,49 @@ export default function App() {
     );
   }
 
-  if (mode === "simple") {
-    return (
-      <>
-        <TodaySimple
-          jobs={liveJobs}
-        customers={liveCustomers}
-        customerNotes={customerNotes}
-        activity={activity}
-        onUndoActivity={undoActivityItem}
-        quotes={liveQuotes}
-        renewals={renewals}
-        settings={settings}
-        todoState={todoState}
-        onTodoAction={todoAction}
-        onTodoSnooze={snoozeTodo}
-        onTodoDismiss={dismissTodo}
-        onTodoDone={doneTodo}
-        checklist={settings.packing_checklist || []}
-        typeChecklists={settings.type_checklists || {}}
-        onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
-        onComplete={completeJobAndReload}
-        onSaveJob={saveJob}
-        onReschedule={rescheduleJob}
-        onCancelJob={cancelJob}
-        onHeadingHome={headingHome}
-        hasLoggedTripToday={trips.some((t) => t.trip_date === todayStr())}
-        todayTripKm={trips.filter((t) => t.trip_date === todayStr()).reduce((s, t) => s + Number(t.distance_km || 0), 0)}
-        onAddNote={addNote}
-        homeBaseAddress={settings.home_base_address}
-        homeBaseLat={settings.home_base_lat}
-        homeBaseLng={settings.home_base_lng}
-        dayStartedToday={settings.day_started_date === todayStr()}
-        onStartDay={() => saveMileageSettings({ day_started_date: todayStr() })}
-        invoices={liveInvoices}
-        leads={leads}
-        demoMode={demoMode}
-        onEnterDemo={() => toggleDemoMode(true)}
-        onExitDemo={() => toggleDemoMode(false)}
-        onLogout={handleLogout}
-        onGoAdvanced={(tab) => {
-          setMode("advanced");
-          if (tab) setView(tab);
-        }}
-      />
-      <FeedbackButton />
-      <Toast toast={toast} onDismiss={() => setToast(null)} />
-      </>
-    );
-  }
+  const backBar = (label) => (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
+      <button onClick={() => setView("settings")} className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-700"><ArrowLeft size={12} /> Settings</button>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
-      <NavBar view={view} setView={setView} onGoSimple={() => setMode("simple")} onLogout={handleLogout} leadBadge={newLeadCount} demoMode={demoMode} onEnterDemo={() => toggleDemoMode(true)} onExitDemo={() => toggleDemoMode(false)} />
+    <div className="min-h-screen bg-slate-50 font-sans pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-0">
+      <NavBar view={view} setView={setView} demoMode={demoMode} onEnterDemo={() => toggleDemoMode(true)} onExitDemo={() => toggleDemoMode(false)} enquiryBadge={newLeadCount} />
 
-      {view === "dashboard" && (
-        <Dashboard
-          customers={liveCustomers}
+      {view === "today" && (
+        <TodaySimple
           jobs={liveJobs}
+          customers={liveCustomers}
+          customerNotes={customerNotes}
+          activity={activity}
+          onUndoActivity={undoActivityItem}
+          quotes={liveQuotes}
+          renewals={renewals}
+          settings={settings}
+          todoState={todoState}
+          onTodoAction={todoAction}
+          onTodoSnooze={snoozeTodo}
+          onTodoDismiss={dismissTodo}
+          onTodoDone={doneTodo}
+          checklist={settings.packing_checklist || []}
+          typeChecklists={settings.type_checklists || {}}
+          onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
+          onComplete={completeJobAndReload}
+          onSaveJob={saveJob}
+          onReschedule={rescheduleJob}
+          onCancelJob={cancelJob}
+          onHeadingHome={headingHome}
+          hasLoggedTripToday={trips.some((t) => t.trip_date === todayStr())}
+          todayTripKm={trips.filter((t) => t.trip_date === todayStr()).reduce((s, t) => s + Number(t.distance_km || 0), 0)}
+          onAddNote={addNote}
+          homeBaseAddress={settings.home_base_address}
+          homeBaseLat={settings.home_base_lat}
+          homeBaseLng={settings.home_base_lng}
+          dayStartedToday={settings.day_started_date === todayStr()}
+          onStartDay={() => saveMileageSettings({ day_started_date: todayStr() })}
           invoices={liveInvoices}
           leads={leads}
-          expenses={liveExpenses}
-          renewals={renewals}
-          trips={liveTrips}
-          settings={settings}
-          setView={setView}
-          onScheduleCustomer={scheduleForCustomer}
-          onMarkPaid={markPaid}
-          onSaveRenewal={saveRenewal}
-          onDeleteRenewal={removeRenewal}
-        />
-      )}
-
-      {view === "customers" && (
-        <Customers
-          customers={liveCustomers}
-          jobs={liveJobs}
-          customerNotes={customerNotes}
-          lapsedDays={settings.lapsed_days ?? 180}
-          dueSoonDays={settings.due_soon_days ?? 7}
-          onSave={saveCustomer}
-          onDelete={removeCustomer}
-          draft={customerDraft}
-          onDraftConsumed={() => setCustomerDraft(null)}
         />
       )}
 
@@ -674,11 +632,14 @@ export default function App() {
         <Schedule
           customers={liveCustomers}
           jobs={liveJobs}
+          quotes={liveQuotes}
+          settings={settings}
           onSave={saveJob}
           onComplete={completeJobAndReload}
           onCancelJob={cancelJob}
           onDelete={removeJob}
           onRaiseInvoice={raiseInvoiceForJob}
+          onConvertAndSchedule={convertQuoteToCustomerAndSchedule}
           draftCustomer={scheduleDraftCustomer}
           draftQuote={scheduleDraftQuote}
           onDraftConsumed={() => {
@@ -688,14 +649,42 @@ export default function App() {
         />
       )}
 
-      {view === "billing" && (
-        <Billing
+      {view === "customers" && (
+        <Customers
+          tab={customersTab}
+          onTab={setCustomersTab}
+          customers={liveCustomers}
+          jobs={liveJobs}
+          customerNotes={customerNotes}
+          lapsedDays={settings.lapsed_days ?? 180}
+          dueSoonDays={settings.due_soon_days ?? 7}
+          onSave={saveCustomer}
+          onDelete={removeCustomer}
+          draft={customerDraft}
+          onDraftConsumed={() => setCustomerDraft(null)}
+          leads={leads}
+          onSetLeadStatus={setLeadStatus}
+          onDeleteLead={removeLead}
+          onConvertLead={convertLeadToCustomer}
+          onCreateQuote={createQuoteFromLead}
+        />
+      )}
+
+      {view === "money" && (
+        <Money
+          tab={moneyTab}
+          onTab={setMoneyTab}
           quotes={liveQuotes}
           invoices={liveInvoices}
           expenses={liveExpenses}
+          trips={liveTrips}
           customers={liveCustomers}
           jobs={liveJobs}
           settings={settings}
+          allInvoices={invoices}
+          allExpenses={expenses}
+          allTrips={trips}
+          allCustomers={customers}
           onSaveQuote={saveQuote}
           onDeleteQuote={removeQuote}
           onSaveInvoice={saveInvoice}
@@ -703,28 +692,16 @@ export default function App() {
           onMarkInvoicePaid={markPaid}
           onSaveExpense={saveExpense}
           onDeleteExpense={removeExpense}
+          onSaveTrip={saveTrip}
+          onDeleteTrip={removeTrip}
+          onCacheCoords={cacheCustomerCoords}
+          onOpenSettings={() => setView("settings")}
           onScheduleFromQuote={scheduleForCustomer}
           onConvertQuoteAndSchedule={convertQuoteToCustomerAndSchedule}
           quoteDraft={quoteDraft}
           onQuoteDraftConsumed={() => setQuoteDraft(null)}
           invoiceDraft={invoiceDraft}
           onInvoiceDraftConsumed={() => setInvoiceDraft(null)}
-        />
-      )}
-
-      {view === "leads" && (
-        <Leads leads={leads} onSetStatus={setLeadStatus} onDelete={removeLead} onConvertToCustomer={convertLeadToCustomer} onCreateQuote={createQuoteFromLead} />
-      )}
-
-      {view === "mileage" && (
-        <Mileage
-          trips={liveTrips}
-          customers={liveCustomers}
-          settings={settings}
-          onSaveTrip={saveTrip}
-          onDeleteTrip={removeTrip}
-          onOpenSettings={() => setView("settings")}
-          onCacheCoords={cacheCustomerCoords}
         />
       )}
 
@@ -736,6 +713,10 @@ export default function App() {
           invoices={invoices}
           expenses={expenses}
           trips={trips}
+          renewals={renewals}
+          onSaveRenewal={saveRenewal}
+          onDeleteRenewal={removeRenewal}
+          onLogout={handleLogout}
           onOpenDev={() => setView("dev")}
           onOpenUsage={() => setView("usage")}
           onOpenPublicPage={() => setView("customerpage")}
@@ -746,9 +727,19 @@ export default function App() {
 
       {view === "usage" && <UsageTimeline onBack={() => setView("settings")} />}
 
-      {view === "customerpage" && <CustomerPage />}
+      {view === "customerpage" && (
+        <>
+          {backBar()}
+          <CustomerPage />
+        </>
+      )}
 
-      {view === "dev" && <Dev demoMode={demoMode} onToggleDemo={toggleDemoMode} />}
+      {view === "dev" && (
+        <>
+          {backBar()}
+          <Dev demoMode={demoMode} onToggleDemo={toggleDemoMode} />
+        </>
+      )}
 
       <FeedbackButton />
       <Toast toast={toast} onDismiss={() => setToast(null)} />

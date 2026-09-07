@@ -181,7 +181,7 @@ function TripModal({ initial, customers, settings, lastTripByCustomer, onCancel,
 }
 
 // ---------------------------------------------------------------------------
-export default function Mileage({ trips, customers, settings, onSaveTrip, onDeleteTrip, onOpenSettings, onCacheCoords }) {
+export default function Mileage({ trips, customers, settings, onSaveTrip, onDeleteTrip, onOpenSettings, onCacheCoords, embedded = false }) {
   const [editingTrip, setEditingTrip] = useState(null);
   const [showAll, setShowAll] = useState(false);
 
@@ -214,9 +214,9 @@ export default function Mileage({ trips, customers, settings, onSaveTrip, onDele
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6">
+    <div className={embedded ? "max-w-lg" : "max-w-lg mx-auto px-4 py-6"}>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-slate-900">Mileage</h1>
+        <h2 className="text-lg font-semibold text-slate-900">Kilometres</h2>
         <button onClick={onOpenSettings} title="Home base & rate live in Settings" className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
           <Settings size={18} />
         </button>
