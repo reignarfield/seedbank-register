@@ -50,24 +50,34 @@ The site is split in two:
 
 ## First-time setup
 
-### 1. Create the database
-1. Create a new Supabase project.
-2. Open the SQL editor and run every file in `supabase/migrations/`, in
-   order (0001, then 0002, then 0003, ...).
-3. Add a login for the business owner: Supabase -> Authentication -> Users
-   -> Add user (email + password, tick auto-confirm). Anyone with an
-   account can sign in and see/edit everything at `/team`.
+Roughly five minutes, once. If you get stuck at any point, run
+`npm run doctor` - it checks every part of the setup and tells you exactly
+what's still missing.
 
-### 2. Run locally
+### 1. Get the code running
 1. Install Node.js (LTS) from nodejs.org.
-2. Copy `.env.example` to `.env` and fill in your Supabase project URL and
-   publishable key (Supabase -> Project Settings -> API), plus optionally
-   `VITE_BUSINESS_PHONE` / `VITE_BUSINESS_EMAIL` for the public page's
-   tap-to-call button.
-3. In this folder, run:
+2. In this folder, run:
+
        npm install
        npm run dev
-4. Open the local URL it prints (usually http://localhost:5173).
+
+3. Open the address it prints (usually http://localhost:5173). You'll get a
+   setup screen walking you through the next two steps - it's the same
+   information as below, in the app itself.
+
+### 2. Create the database
+1. Create a new Supabase project (free tier is plenty for one business).
+2. Open the SQL Editor, paste in the whole of `supabase/schema.sql`, and
+   run it. That's the entire database setup - one file, safe to run again
+   at any time, and it never drops anything.
+   *(The numbered files in `supabase/migrations/` are only for projects
+   already running an older version.)*
+3. Copy `.env.example` to `.env` and fill in your Supabase project URL and
+   publishable key (Supabase -> Project Settings -> API).
+4. Restart `npm run dev` so it picks up the new values.
+5. Add your login: Supabase -> Authentication -> Users -> Add user (email +
+   password, tick auto-confirm). Anyone with an account can sign in at
+   `/team` and see everything.
 
 ### 3. Turn on automated reminders (optional but recommended)
 Follow `supabase/functions/send-reminders/README.md` - it needs a (free)
@@ -92,6 +102,36 @@ Add user accounts in Supabase -> Authentication -> Users -> Add user
 at `/team` and manage the whole business (customers, jobs, quotes,
 invoices, expenses, leads).
 
+## Using this for a different business
+
+The database schema is deliberately trade-agnostic - customers, jobs,
+quotes, invoices, expenses. A mobile mechanic, a gardener and a dog groomer
+all store the same shapes; only the words change. So pointing this at a
+different sole trader is configuration, not a rewrite:
+
+1. **`src/lib/business.js`** - the single file that holds identity, contact
+   details, currency, what this trade calls a "job", and which optional
+   features are switched on. Every value can also be set from `.env`, so one
+   codebase can serve several businesses without a code change.
+2. **`src/lib/pricing.js`** - the price list the public page renders from.
+3. **`src/assets/` and `public/`** - logo and icons.
+
+Switching a feature off in `business.js` (mileage, quotes, expenses, leads,
+recurring scheduling, the weather nudge) hides it completely rather than
+leaving an empty tab. Removing what someone will never open is the fastest
+way to make software feel simple.
+
+The browser tab title, meta description and install manifest are generated
+at build time from the same values, so renaming the business stays a
+one-file job.
+
+### What's not done yet
+
+Every signed-in user can currently see every record - the row-level
+security policies are `using (true)`. That's correct for one business running
+its own copy, and it's the thing to change first if this ever becomes one
+deployment serving many businesses: an `org_id` on every table, and policies
+scoped to it.
 ## Updating prices
 The public pricing page reads from `src/lib/pricing.js` - edit that file
 and redeploy to change what's shown.

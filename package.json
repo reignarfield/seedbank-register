@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "doctor": "node scripts/doctor.mjs",
+    "setup": "npm install && node scripts/doctor.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

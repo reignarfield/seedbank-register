@@ -53,7 +53,10 @@ import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
 import PasswordRecovery from "./components/PasswordRecovery";
 import SignInForm from "./components/SignInForm";
+import SetupNeeded from "./components/SetupNeeded";
 import Toast from "./components/Toast";
+import { isConfigured } from "./lib/supabaseClient";
+import { BUSINESS } from "./lib/business";
 import logo from "./assets/tydie-logo.png";
 
 // Everything under /team is the staff-only admin app (sign-in required).
@@ -158,6 +161,12 @@ export default function App() {
   };
 
   useEffect(() => {
+    // With no database configured there is nothing to ask for a session, and
+    // trying would only produce network errors behind the setup screen.
+    if (!isConfigured) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       const s = await getSession();
       setSession(s);
@@ -406,6 +415,14 @@ export default function App() {
   // so the homepage itself is the "just let me book something" experience.
   const pathname = typeof window !== "undefined" ? window.location.pathname.replace(/\/+$/, "") || "/" : "/";
   const isStaffRoute = pathname === STAFF_PATH_PREFIX || pathname.startsWith(`${STAFF_PATH_PREFIX}/`);
+
+  // Before anything else: a build with no database can't sign anyone in or
+  // take a booking, so say so plainly rather than rendering a form that will
+  // silently fail.
+  if (!isConfigured) {
+    return <SetupNeeded />;
+  }
+
   if (!isStaffRoute) {
     return <PublicSite />;
   }
@@ -426,7 +443,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-sm">
-          <img src={logo} alt="Tydie Cleaning" className="w-full max-w-[220px] mx-auto rounded-xl shadow-sm mb-6" />
+          <img src={logo} alt={BUSINESS.name} className="w-full max-w-[220px] mx-auto rounded-xl shadow-sm mb-6" />
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <SignInForm />
           </div>
