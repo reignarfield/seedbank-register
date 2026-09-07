@@ -63,12 +63,22 @@ jobs:
           grep -q 'rel="manifest"' dist/index.html || { echo "::error::index.html is missing the manifest link"; exit 1; }
           echo "Build looks right."
 
+      # The CLI is fetched fresh each run and the upload crosses the internet;
+      # either can hiccup. Three goes, a short wait between, before calling
+      # it a real failure - the build itself has already been proven above.
       - name: Deploy to Netlify
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: 07852d33-ea08-4162-a459-4317bf7cb8aa
         run: |
-          npx --yes netlify-cli@17 deploy \
-            --dir=dist \
-            --prod \
-            --message="${GITHUB_SHA::7} ${GITHUB_EVENT_NAME}"
+          npm install --no-save --no-audit --no-fund netlify-cli@17
+          for attempt in 1 2 3; do
+            if npx netlify deploy --dir=dist --prod --message="${GITHUB_SHA::7} ${GITHUB_EVENT_NAME} (attempt $attempt)"; then
+              echo "Deployed on attempt $attempt."
+              exit 0
+            fi
+            echo "::warning::Deploy attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          echo "::error::Deploy failed after 3 attempts"
+          exit 1
