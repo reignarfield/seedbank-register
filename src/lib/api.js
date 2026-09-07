@@ -23,6 +23,13 @@ export const updatePassword = (...a) => real.updatePassword(...a);
 // Public booking form - a real enquiry from a real visitor, always real.
 export const submitPublicLead = (...a) => real.submitPublicLead(...a);
 
+// Usage tracking and suggestions - about the person, not the data set, so
+// they go to the real database even while demo data is on screen.
+export const insertUsageEvents = (...a) => real.insertUsageEvents(...a);
+export const fetchUsageEvents = (...a) => real.fetchUsageEvents(...a);
+export const submitFeedback = (...a) => real.submitFeedback(...a);
+export const fetchFeedback = (...a) => real.fetchFeedback(...a);
+
 // ---------------------------------------------------------------------------
 // Business data - real or demo
 // ---------------------------------------------------------------------------

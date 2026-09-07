@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Loader2, Building2, Car, Users, ClipboardList, Bell, Wrench, Globe, FlaskConical, Download, ChevronRight } from "lucide-react";
+import { Loader2, Building2, Car, Users, ClipboardList, Bell, Wrench, Globe, FlaskConical, Download, ChevronRight, MousePointerClick } from "lucide-react";
 import { Card, Field, TextInput, Button, SectionTitle } from "./ui";
 import EditChecklistModal from "./EditChecklistModal";
 import { PRICE_GROUPS } from "../lib/pricing";
@@ -72,6 +72,7 @@ export default function Settings({
   expenses,
   trips,
   onOpenDev,
+  onOpenUsage,
   onOpenPublicPage,
   demoMode,
   onToggleDemo,
@@ -196,6 +197,9 @@ export default function Settings({
           </button>
           <button onClick={() => onToggleDemo(!demoMode)} className="flex items-center justify-between w-full py-2.5 text-sm text-slate-700 hover:text-blue-700">
             <span className="flex items-center gap-2"><FlaskConical size={14} /> {demoMode ? "Back to real data" : "Switch to the demo business"}</span><ChevronRight size={15} className="text-slate-300" />
+          </button>
+          <button onClick={onOpenUsage} className="flex items-center justify-between w-full py-2.5 text-sm text-slate-700 hover:text-blue-700">
+            <span className="flex items-center gap-2"><MousePointerClick size={14} /> What he actually does - screens, taps, time, suggestions</span><ChevronRight size={15} className="text-slate-300" />
           </button>
           <button onClick={onOpenDev} className="flex items-center justify-between w-full py-2.5 text-sm text-slate-700 hover:text-blue-700">
             <span className="flex items-center gap-2"><Wrench size={14} /> Changelog and the Journey walkthrough</span><ChevronRight size={15} className="text-slate-300" />

@@ -72,6 +72,9 @@ export const BUSINESS = {
     // The weather nudge on the Today screen - only useful outdoors.
     weather: env.VITE_FEATURE_WEATHER !== "off",
     publicBooking: env.VITE_FEATURE_PUBLIC_BOOKING !== "off",
+    // Screen and tap logging to this app's own database, for learning how
+    // the person actually works. Switch off once the order is settled.
+    tracking: env.VITE_FEATURE_TRACKING !== "off",
   },
 };
 

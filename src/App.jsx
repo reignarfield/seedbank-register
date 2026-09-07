@@ -53,6 +53,9 @@ import Billing from "./components/Billing";
 import Leads from "./components/Leads";
 import Dev from "./components/Dev";
 import Settings from "./components/Settings";
+import UsageTimeline from "./components/UsageTimeline";
+import FeedbackButton from "./components/FeedbackButton";
+import { startSession, trackScreen, attachTapListener, flush as flushTracking } from "./lib/track";
 import Mileage from "./components/Mileage";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
@@ -194,7 +197,24 @@ export default function App() {
     return unsub;
   }, []);
 
+  // Usage tracking: a session per app-open, the current screen with dwell
+  // time, and every tap by its label. Only while signed in.
+  useEffect(() => {
+    if (!session) return;
+    startSession();
+    const detach = attachTapListener();
+    return () => {
+      detach();
+      flushTracking();
+    };
+  }, [session]);
+  useEffect(() => {
+    if (!session) return;
+    trackScreen(mode === "simple" ? "today" : view);
+  }, [session, mode, view]);
+
   const handleLogout = async () => {
+    await flushTracking();
     await signOut();
     setSession(null);
     setCustomers([]);
@@ -536,6 +556,7 @@ export default function App() {
           if (tab) setView(tab);
         }}
       />
+      <FeedbackButton />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
       </>
     );
@@ -644,16 +665,20 @@ export default function App() {
           expenses={expenses}
           trips={trips}
           onOpenDev={() => setView("dev")}
+          onOpenUsage={() => setView("usage")}
           onOpenPublicPage={() => setView("customerpage")}
           demoMode={demoMode}
           onToggleDemo={toggleDemoMode}
         />
       )}
 
+      {view === "usage" && <UsageTimeline onBack={() => setView("settings")} />}
+
       {view === "customerpage" && <CustomerPage />}
 
       {view === "dev" && <Dev demoMode={demoMode} onToggleDemo={toggleDemoMode} />}
 
+      <FeedbackButton />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );

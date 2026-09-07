@@ -345,6 +345,29 @@ export async function addCustomerNote(customerId, note) {
 }
 
 // ---------------------------------------------------------------------------
+// Usage tracking + feedback. Always the real database, demo mode or not.
+// ---------------------------------------------------------------------------
+export async function insertUsageEvents(rows) {
+  if (!rows.length) return;
+  const { error } = await supabase.from("usage_events").insert(rows);
+  if (error) throw error;
+}
+export async function fetchUsageEvents(limit = 2000) {
+  const { data, error } = await supabase.from("usage_events").select("*").order("occurred_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+export async function submitFeedback({ message, trying_to, screen, session_id }) {
+  const { error } = await supabase.from("feedback").insert({ message, trying_to, screen, session_id });
+  if (error) throw error;
+}
+export async function fetchFeedback() {
+  const { data, error } = await supabase.from("feedback").select("*").order("created_at", { ascending: false }).limit(200);
+  if (error) throw error;
+  return data || [];
+}
+
+// ---------------------------------------------------------------------------
 // Archive, never delete. Invoices, expenses and the km log are tax records
 // with a five-year retention rule; customers and jobs are what those records
 // hang off. Archiving hides a row from every list and keeps it in every total.
