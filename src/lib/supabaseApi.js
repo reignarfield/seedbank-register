@@ -415,6 +415,34 @@ export async function archiveCustomer(id) {
 }
 
 // ---------------------------------------------------------------------------
+// The to-do list's memory (HANDOFF 2/4). Real database only - a snooze is a
+// decision about real work, and losing it when demo mode is flipped would be
+// the sort of small betrayal that stops someone trusting the list.
+// ---------------------------------------------------------------------------
+export async function fetchNudgeStates() {
+  const { data, error } = await supabase.from("nudge_state").select("*");
+  // A project that hasn't run migration 0014 yet has no table here. That's a
+  // to-do list with no memory, not a broken app - don't take the whole load
+  // down with it.
+  if (error?.code === "42P01") return {};
+  if (error) throw error;
+  // Keyed the way the builder looks them up.
+  return Object.fromEntries((data || []).map((r) => [r.nudge_key, r]));
+}
+
+export async function saveNudgeState(nudge_key, patch) {
+  const me = await whoami();
+  if (!me.user_id) throw new Error("Not signed in");
+  const { data, error } = await supabase
+    .from("nudge_state")
+    .upsert({ user_id: me.user_id, nudge_key, updated_at: new Date().toISOString(), ...patch }, { onConflict: "user_id,nudge_key" })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------------------
 // Activity log - what the app did, so it can be seen and reversed
 // ---------------------------------------------------------------------------
 export async function fetchActivity() {

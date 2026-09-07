@@ -123,6 +123,24 @@ Deno.serve(async () => {
     };
     const RENEWAL_LEAD_DAYS = settingsRow?.renewal_lead_days ?? DEFAULT_RENEWAL_LEAD_DAYS;
 
+    // ---- 0b. What he pressed send on (HANDOFF 2/4) ----
+    // The Settings switches above are blanket permission: due_soon on means
+    // every due customer gets emailed, automatically. Approvals are the other
+    // way in - one item at a time, from the to-do list on the Today screen.
+    // With a switch off, only the items he actually pressed "Send it" on go
+    // out, which is how this is meant to be run until he trusts it.
+    const { data: approvals } = await supabase
+      .from("nudge_state")
+      .select("nudge_key")
+      .not("approved_send_at", "is", null)
+      .is("sent_at", null);
+    const approved = new Set((approvals || []).map((a: { nudge_key: string }) => a.nudge_key));
+    // Stamped once it's really gone, so an approval is spent rather than
+    // standing permission to email that person forever.
+    async function markApprovalSent(key: string) {
+      await supabase.from("nudge_state").update({ sent_at: new Date().toISOString() }).eq("nudge_key", key);
+    }
+
     // ---- 1. Customers due for their next clean ----
     const { data: customers, error: custError } = await supabase
       .from("customers")
@@ -141,7 +159,9 @@ Deno.serve(async () => {
       if (daysUntil > DUE_SOON_LEAD_DAYS) continue; // not due soon yet
 
       dueSoonList.push({ name: c.name, nextDue });
-      if (!on.due_soon) continue; // counted for the digest, not emailed
+      // Either blanket permission, or he pressed send on this one customer.
+      const approvedHere = approved.has(`rebook:${c.id}`);
+      if (!on.due_soon && !approvedHere) continue; // counted for the digest, not emailed
 
       if (!c.email) continue; // nothing to send, but still counted in the owner digest
       if (await recentlySent("due_soon", c.id, DUE_SOON_RESEND_DAYS)) continue;
@@ -155,6 +175,7 @@ Deno.serve(async () => {
          <p>Thanks,<br/>${businessName}</p>`
       );
       await logSent("due_soon", c.id);
+      if (approvedHere) await markApprovalSent(`rebook:${c.id}`);
       results.dueSoonEmailed++;
     }
 
@@ -173,7 +194,8 @@ Deno.serve(async () => {
       const customer = Array.isArray(inv.customers) ? inv.customers[0] : inv.customers;
       overdueList.push({ name: customer?.name || "Unknown", amount: inv.amount, dueDate: inv.due_date });
 
-      if (!on.invoice_overdue) continue; // counted for the digest, not emailed
+      const approvedHere = approved.has(`invoice:${inv.id}`);
+      if (!on.invoice_overdue && !approvedHere) continue; // counted for the digest, not emailed
       if (!customer?.email) continue;
       if (await recentlySent("invoice_overdue", inv.id, INVOICE_OVERDUE_RESEND_DAYS)) continue;
 
@@ -186,6 +208,7 @@ Deno.serve(async () => {
          <p>Thanks,<br/>${businessName}</p>`
       );
       await logSent("invoice_overdue", inv.id);
+      if (approvedHere) await markApprovalSent(`invoice:${inv.id}`);
       results.overdueInvoiceEmailed++;
     }
 

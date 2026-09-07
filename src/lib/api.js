@@ -28,7 +28,14 @@ export const submitPublicLead = (...a) => real.submitPublicLead(...a);
 export const insertUsageEvents = (...a) => real.insertUsageEvents(...a);
 export const fetchUsageEvents = (...a) => real.fetchUsageEvents(...a);
 export const submitFeedback = (...a) => real.submitFeedback(...a);
+
 export const fetchFeedback = (...a) => real.fetchFeedback(...a);
+
+// The to-do list's memory - done/snoozed/approved. Always real: a snooze is a
+// decision about real work, not part of the demo data set.
+export const fetchNudgeStates = (...a) => real.fetchNudgeStates(...a);
+export const saveNudgeState = (...a) => real.saveNudgeState(...a);
+
 
 // ---------------------------------------------------------------------------
 // Business data - real or demo

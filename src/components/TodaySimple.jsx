@@ -28,6 +28,7 @@ import { Card, Button, EmptyState, TextInput, TextArea, money } from "./ui";
 import { todayStr, addDays, formatDate } from "../lib/dates";
 import { fetchRainChance } from "../lib/weather";
 import MorningCheck from "./MorningCheck";
+import TodoList from "./TodoList";
 import { ActivityTodayLine } from "./ActivityFeed";
 import { jobsToday, jobsOverdue, jobsCompletedToday, invoicesOverdue, leadsNew } from "../lib/today";
 import { CompleteNoPricePrompt, JobForm } from "./Schedule";
@@ -288,6 +289,10 @@ export default function TodaySimple({
   onStartDay,
   invoices,
   leads,
+  nudges = [],
+  onNudgeDone,
+  onNudgeSnooze,
+  onNudgeApproveSend,
   demoMode,
   onEnterDemo,
   onExitDemo,
@@ -510,6 +515,17 @@ export default function TodaySimple({
             <Home size={15} /> Heading home
           </button>
         )}
+
+        {/* What isn't booked but should be: leads nobody rang back, regulars
+            past due, invoices gone quiet. Below today's jobs deliberately -
+            the work in front of him comes first. */}
+        <TodoList
+          nudges={nudges}
+          onDone={onNudgeDone}
+          onSnooze={onNudgeSnooze}
+          onApproveSend={onNudgeApproveSend}
+          onOpen={onGoAdvanced}
+        />
 
         <MorningCheck jobs={jobs} customers={customers} checklist={effectiveChecklist} baseChecklist={checklist} onSaveChecklist={onSaveChecklist} />
 

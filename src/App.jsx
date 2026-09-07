@@ -43,6 +43,8 @@ import {
   fetchActivity,
   logActivity,
   undoActivity,
+  fetchNudgeStates,
+  saveNudgeState,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
 import TodaySimple from "./components/TodaySimple";
@@ -54,6 +56,7 @@ import Leads from "./components/Leads";
 import Dev from "./components/Dev";
 import Settings from "./components/Settings";
 import UsageTimeline from "./components/UsageTimeline";
+import { buildNudges } from "./lib/nudges";
 import FeedbackButton from "./components/FeedbackButton";
 import { startSession, trackScreen, attachTapListener, flush as flushTracking, endSession } from "./lib/track";
 import Mileage from "./components/Mileage";
@@ -122,6 +125,9 @@ export default function App() {
   const [trips, setTrips] = useState([]);
   const [customerNotes, setCustomerNotes] = useState([]);
   const [activity, setActivity] = useState([]);
+  // What he's already done with, snoozed, or approved to send - the to-do
+  // list's memory, keyed by the suggestion's stable key.
+  const [nudgeStates, setNudgeStates] = useState({});
   const [settings, setSettings] = useState({
     home_base_address: null,
     home_base_lat: null,
@@ -164,6 +170,7 @@ export default function App() {
     settings: [fetchSettings, setSettings],
     customerNotes: [fetchCustomerNotes, setCustomerNotes],
     activity: [fetchActivity, setActivity],
+    nudgeStates: [fetchNudgeStates, setNudgeStates],
   };
 
   const reload = async (only) => {
@@ -229,6 +236,7 @@ export default function App() {
     setTrips([]);
     setCustomerNotes([]);
     setActivity([]);
+    setNudgeStates({});
     setView("dashboard");
     setMode("simple");
   };
@@ -469,6 +477,42 @@ export default function App() {
     setView("billing");
   };
 
+  // ---- The to-do list (HANDOFF 2/4) ----
+  // Derived fresh from the same data every other screen reads, minus whatever
+  // he's already dealt with. Live rows only: an archived customer is off the
+  // books, so it has no business suggesting he ring them.
+  const nudges = buildNudges({
+    customers: liveRows(customers),
+    jobs: liveRows(jobs),
+    invoices: liveRows(invoices),
+    quotes: liveRows(quotes),
+    leads,
+    states: nudgeStates,
+    settings,
+  });
+
+  // One write, one refresh - "did it", "not until Monday", and "yes, send
+  // that email" are the same shape underneath.
+  const answerNudge = async (nudge, patch) => {
+    try {
+      await saveNudgeState(nudge.key, {
+        kind: nudge.kind,
+        ref_table: nudge.ref?.table || null,
+        ref_id: nudge.ref?.id || null,
+        ...patch,
+      });
+      await reload(["nudgeStates"]);
+    } catch (e) {
+      notifyError("Couldn't save that - check your connection and try again.");
+      throw e;
+    }
+  };
+  const nudgeDone = (n) => answerNudge(n, { done_at: new Date().toISOString(), snoozed_until: null });
+  const nudgeSnooze = (n, until) => answerNudge(n, { snoozed_until: until, done_at: null });
+  // Approval only. The scheduled reminder function is what actually sends,
+  // and it sends nothing that hasn't been approved here.
+  const nudgeApproveSend = (n) => answerNudge(n, { approved_send_at: new Date().toISOString() });
+
   const newLeadCount = leads.filter((l) => l.status === "new").length;
 
   // Screens see only live rows. The raw arrays - archived included - go to
@@ -549,6 +593,10 @@ export default function App() {
         onStartDay={() => saveMileageSettings({ day_started_date: todayStr() })}
         invoices={liveInvoices}
         leads={leads}
+        nudges={nudges}
+        onNudgeDone={nudgeDone}
+        onNudgeSnooze={nudgeSnooze}
+        onNudgeApproveSend={nudgeApproveSend}
         demoMode={demoMode}
         onEnterDemo={() => toggleDemoMode(true)}
         onExitDemo={() => toggleDemoMode(false)}
