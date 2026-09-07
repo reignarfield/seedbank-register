@@ -1,0 +1,74 @@
+# Build and publish to Netlify on every push to main.
+#
+# This deliberately does NOT use Netlify's own repo integration. That link is
+# stored against the repository name, so renaming the repo leaves it looking
+# correct in the dashboard while silently no longer triggering builds - which
+# is exactly what happened here after seedbank-register became tydie-cleaning.
+# Building here and uploading the finished dist/ sidesteps that entirely.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # so you can also deploy by hand from the Actions tab
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true   # a newer push supersedes one still deploying
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Vite inlines VITE_* values at build time, so a build without them
+      # produces a bundle that thinks it has no database and shows the setup
+      # screen to real visitors. Better to fail loudly here than to publish
+      # that. See src/lib/supabaseClient.js.
+      - name: Check required secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] && missing="$missing VITE_SUPABASE_URL"
+          [ -z "${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}" ] && missing="$missing VITE_SUPABASE_PUBLISHABLE_KEY"
+          [ -z "${{ secrets.NETLIFY_AUTH_TOKEN }}" ] && missing="$missing NETLIFY_AUTH_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them at Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_BUSINESS_PHONE: ${{ secrets.VITE_BUSINESS_PHONE }}
+          VITE_BUSINESS_EMAIL: ${{ secrets.VITE_BUSINESS_EMAIL }}
+        run: npm run build
+
+      # A build that produced the setup screen would still deploy happily, so
+      # check the real bundle came out before publishing it.
+      - name: Sanity-check the build
+        run: |
+          test -f dist/index.html || { echo "::error::no dist/index.html"; exit 1; }
+          test -f dist/manifest.webmanifest || { echo "::error::manifest was not generated"; exit 1; }
+          grep -q 'rel="manifest"' dist/index.html || { echo "::error::index.html is missing the manifest link"; exit 1; }
+          echo "Build looks right."
+
+      - name: Deploy to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: 07852d33-ea08-4162-a459-4317bf7cb8aa
+        run: |
+          npx --yes netlify-cli@17 deploy \
+            --dir=dist \
+            --prod \
+            --message="${GITHUB_SHA::7} ${GITHUB_EVENT_NAME}"
