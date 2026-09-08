@@ -229,6 +229,14 @@ export default function DayInTheLife() {
           ask="How does he quote now — in person, over the phone, a text with a number? Does he write anything down?"
         />
         <Step
+          n={21.5}
+          title="Quote a job with several parts"
+          does="Someone asks for the windows, the driveway and the solar panels."
+          app="A quote is one amount and one description. The enquiry form lists what they ticked, but the quote doesn't itemise."
+          gap="No line items on a quote. If he prices each part separately, he has to write it out in the description by hand."
+          ask="Does he give one number or itemise? Does he go and look at a place before quoting it, or price it off what they said - and has that ever caught him out? (The address lookup on an enquiry shows the building type and a Street View link for exactly this.)"
+        />
+        <Step
           n={22}
           title="Ring people he hasn't seen in a while"
           does={<>Opens Customers → <B>Reach out again</B>.</>}

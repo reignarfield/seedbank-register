@@ -45,6 +45,8 @@ import {
   undoActivity,
   fetchTodoState,
   setTodoState,
+  sendEmail,
+  markInvoiceSent,
 } from "./lib/api";
 import NavBar from "./components/NavBar";
 import TodaySimple from "./components/TodaySimple";
@@ -57,6 +59,9 @@ import UsageTimeline from "./components/UsageTimeline";
 import FeedbackButton from "./components/FeedbackButton";
 import { startSession, trackScreen, attachTapListener, flush as flushTracking, setTrackedUser } from "./lib/track";
 import { snoozeUntil } from "./lib/todo";
+import { enqueue, drain, attachDrain, onQueueChange, pending, isNetworkFailure } from "./lib/offline";
+import { registerServiceWorker } from "./lib/push";
+import { BUSINESS as BIZ } from "./lib/business";
 import CustomerPage from "./components/CustomerPage";
 import PublicSite from "./components/PublicSite";
 import PasswordRecovery from "./components/PasswordRecovery";
@@ -99,9 +104,40 @@ function currentPosition(trips, customers, settings) {
 export default function App() {
   // One app, five tabs. Today is the first and the default; the builder
   // screens (usage, dev, customerpage) sit under Settings.
-  const [view, setView] = useState("today");
-  const [moneyTab, setMoneyTab] = useState("invoices");
-  const [customersTab, setCustomersTab] = useState("customers");
+  // The tab lives in the address (#/money/quotes), so a refresh comes back to
+  // the same place and the phone's back gesture goes back a tab instead of
+  // leaving the app.
+  const readHash = () => {
+    const h = (typeof window !== "undefined" ? window.location.hash : "").replace(/^#\/?/, "");
+    const [v, sub] = h.split("/");
+    return { view: v || "today", sub: sub || null };
+  };
+  const initial = readHash();
+  const [view, setViewState] = useState(initial.view);
+  const [moneyTab, setMoneyTabState] = useState(initial.view === "money" && initial.sub ? initial.sub : "invoices");
+  const [customersTab, setCustomersTabState] = useState(initial.view === "customers" && initial.sub ? initial.sub : "customers");
+  const fromPop = React.useRef(false);
+  const pushHash = (v, m, c) => {
+    const sub = v === "money" ? m : v === "customers" ? c : null;
+    const next = `#/${v}${sub ? "/" + sub : ""}`;
+    if (window.location.hash !== next) window.history.pushState(null, "", next);
+  };
+  const setView = (v) => { setViewState(v); pushHash(v, moneyTab, customersTab); };
+  const setMoneyTab = (t) => { setMoneyTabState(t); pushHash("money", t, customersTab); };
+  const setCustomersTab = (t) => { setCustomersTabState(t); pushHash("customers", moneyTab, t); };
+  useEffect(() => {
+    const onPop = () => {
+      const h = readHash();
+      fromPop.current = true;
+      setViewState(h.view);
+      if (h.view === "money" && h.sub) setMoneyTabState(h.sub);
+      if (h.view === "customers" && h.sub) setCustomersTabState(h.sub);
+    };
+    window.addEventListener("popstate", onPop);
+    if (!window.location.hash) window.history.replaceState(null, "", "#/today");
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  const [pendingOffline, setPendingOffline] = useState(() => pending().length);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -204,6 +240,31 @@ export default function App() {
 
   // Usage tracking: a session per app-open, the current screen with dwell
   // time, and every tap by its label. Only while signed in.
+  // Offline queue: anything saved on the phone while out of range sends
+  // itself when the signal comes back. Also readies the service worker for
+  // push (nothing is sent yet).
+  useEffect(() => {
+    if (!session) return;
+    registerServiceWorker();
+    const off = onQueueChange((q) => setPendingOffline(q.length));
+    const perform = async (action, args) => {
+      if (action === "completeJob") await completeJob(args.job, args.opts);
+      else if (action === "upsertJob") await upsertJob(args.job);
+      else if (action === "addCustomerNote") await addCustomerNote(args.customerId, args.note);
+      else if (action === "upsertExpense") await upsertExpense(args.expense);
+      else throw new Error("unknown queued action " + action);
+    };
+    const report = (item) => notifyError(`Couldn't send "${item.describe}" - the server refused it. Check it in the app.`);
+    const run = async () => {
+      if (pending().length === 0) return;
+      await drain(perform, report);
+      if (pending().length === 0) reload(["jobs", "customers", "invoices", "activity", "customerNotes", "expenses"]);
+    };
+    const detach = attachDrain(run);
+    return () => { off(); detach(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   useEffect(() => {
     if (!session) return;
     setTrackedUser(session.user);
@@ -267,15 +328,21 @@ export default function App() {
     }
   };
   const completeJobAndReload = async (j, paidNow) => {
+    const customer = customers.find((c) => c.id === j.customer_id);
     try {
       const pos = currentPosition(trips, customers, settings);
       await completeJob(j, { paidNow, dueDays: settings.invoice_due_days });
-      const customer = customers.find((c) => c.id === j.customer_id);
       // The trip logs in the background; trips refresh once it's had a chance
       // to land rather than racing it.
       if (customer) logAutoTrip(pos, customer, j.job_type).then(() => reload(["trips"])).catch(() => {});
       await reload(["jobs", "customers", "invoices", "activity"]);
     } catch (e) {
+      if (isNetworkFailure(e)) {
+        enqueue("completeJob", { job: j, opts: { paidNow, dueDays: settings.invoice_due_days } }, `Mark ${customer?.name || "a job"} done`);
+        setJobs((prev) => prev.map((x) => (x.id === j.id ? { ...x, status: "completed", completed_at: new Date().toISOString(), price: j.price ?? x.price } : x)));
+        setToast({ message: "No signal - saved on the phone. It'll send when you're back in range." });
+        return;
+      }
       notifyError("Couldn't mark that job done - check your connection and try again.");
       throw e;
     }
@@ -300,6 +367,13 @@ export default function App() {
       await logActivity({ kind: "job_cancelled", summary: `Cancelled ${c?.name || "a"} job for ${formatDate(j.scheduled_date)}`, customer_id: j.customer_id, ref_table: "jobs", ref_id: j.id }).catch(() => {});
       await reload(["jobs", "activity"]);
     } catch (e) {
+      if (isNetworkFailure(e)) {
+        const c = customers.find((x) => x.id === j.customer_id);
+        enqueue("upsertJob", { job: { ...j, status: "cancelled" } }, `Cancel ${c?.name || "a"} job`);
+        setJobs((prev) => prev.map((x) => (x.id === j.id ? { ...x, status: "cancelled" } : x)));
+        setToast({ message: "No signal - saved on the phone. It'll send when you're back in range." });
+        return;
+      }
       notifyError("Couldn't cancel that job - check your connection and try again.");
       throw e;
     }
@@ -311,6 +385,13 @@ export default function App() {
       await logActivity({ kind: "job_rescheduled", summary: `Moved ${c?.name || "a"} job to ${formatDate(date)}`, customer_id: j.customer_id, ref_table: "jobs", ref_id: j.id }).catch(() => {});
       await reload(["jobs", "activity"]);
     } catch (e) {
+      if (isNetworkFailure(e)) {
+        const c = customers.find((x) => x.id === j.customer_id);
+        enqueue("upsertJob", { job: { ...j, scheduled_date: date, route_order: null } }, `Move ${c?.name || "a"} job to ${formatDate(date)}`);
+        setJobs((prev) => prev.map((x) => (x.id === j.id ? { ...x, scheduled_date: date, route_order: null } : x)));
+        setToast({ message: "No signal - saved on the phone. It'll send when you're back in range." });
+        return;
+      }
       notifyError("Couldn't move that job - check your connection and try again.");
       throw e;
     }
@@ -408,8 +489,19 @@ export default function App() {
 
   // ---- Expenses ----
   const saveExpense = async (ex) => {
-    await upsertExpense(ex);
-    await reload();
+    try {
+      await upsertExpense(ex);
+      await reload(["expenses"]);
+    } catch (e) {
+      if (isNetworkFailure(e)) {
+        enqueue("upsertExpense", { expense: { ...ex, receipt_path: ex.receipt_path || null } }, `Expense ${Number(ex.amount || 0).toFixed(2)}`);
+        setExpenses((prev) => [{ ...ex, id: ex.id || `local-${Date.now()}` }, ...prev.filter((x) => x.id !== ex.id)]);
+        setToast({ message: "No signal - saved on the phone. It'll send when you're back in range." });
+        return;
+      }
+      notifyError("Couldn't save that expense - check your connection and try again.");
+      throw e;
+    }
   };
   const removeExpense = async (id) => {
     await archiveExpense(id);
@@ -456,6 +548,13 @@ export default function App() {
       await addCustomerNote(customerId, note);
       await reload(["customerNotes"]);
     } catch (e) {
+      if (isNetworkFailure(e)) {
+        const c = customers.find((x) => x.id === customerId);
+        enqueue("addCustomerNote", { customerId, note }, `Note on ${c?.name || "a customer"}`);
+        setCustomerNotes((prev) => [{ id: `local-${Date.now()}`, customer_id: customerId, note, created_at: new Date().toISOString() }, ...prev]);
+        setToast({ message: "No signal - saved on the phone. It'll send when you're back in range." });
+        return;
+      }
       notifyError("Couldn't save that note - check your connection and try again.");
       throw e;
     }
@@ -481,6 +580,29 @@ export default function App() {
     if (lead.status === "new") await setLeadStatus(lead, "quoted");
     setMoneyTab("quotes");
     setView("money");
+  };
+
+  // Three fields from the van; the rest later, at a desk.
+  const quickAddCustomer = async (form) => {
+    try {
+      const created = await upsertCustomer(form);
+      await reload(["customers"]);
+      return created;
+    } catch (e) {
+      notifyError("Couldn't add them - check your connection and try again.");
+      throw e;
+    }
+  };
+
+  // Email an invoice: the app composes it, the send-email function holds the
+  // key. A 503 means email isn't set up yet, and that message is shown as-is.
+  const emailInvoice = async (inv, to, html) => {
+    const c = customers.find((x) => x.id === inv.customer_id);
+    const short = String(inv.id).replace(/-/g, "").slice(0, 8).toUpperCase();
+    await sendEmail({ to, subject: `${settings.gst_registered ? "Tax invoice" : "Invoice"} ${short} from ${BIZ.name}`, html, reply_to: BIZ.email || undefined });
+    await markInvoiceSent(inv.id, to);
+    await logActivity({ kind: "invoice_sent", summary: `Emailed invoice ${short} to ${c?.name || to}`, actor: "user", customer_id: inv.customer_id, ref_table: "invoices", ref_id: inv.id }).catch(() => {});
+    await reload(["invoices", "activity"]);
   };
 
   // ---- Cross-module handoffs ----
@@ -607,6 +729,8 @@ export default function App() {
           onTodoSnooze={snoozeTodo}
           onTodoDismiss={dismissTodo}
           onTodoDone={doneTodo}
+          onQuickAddCustomer={quickAddCustomer}
+          pendingOffline={pendingOffline}
           checklist={settings.packing_checklist || []}
           typeChecklists={settings.type_checklists || {}}
           onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}
@@ -690,6 +814,7 @@ export default function App() {
           onSaveInvoice={saveInvoice}
           onDeleteInvoice={removeInvoice}
           onMarkInvoicePaid={markPaid}
+          onEmailInvoice={emailInvoice}
           onSaveExpense={saveExpense}
           onDeleteExpense={removeExpense}
           onSaveTrip={saveTrip}

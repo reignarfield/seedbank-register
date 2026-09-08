@@ -14,7 +14,12 @@ export const isConfigured = Boolean(url && key);
 // well-formed address in the reserved `.invalid` TLD (RFC 2606, guaranteed
 // never to resolve) keeps the import safe. Nothing ever calls through it,
 // because isConfigured gates the app first.
+//
+// Passkeys (Face ID / fingerprint / device PIN) are Supabase's beta WebAuthn
+// support, opted into here. They only work once the project's Auth settings
+// name this site as the relying party; until then the passkey buttons say so.
 export const supabase = createClient(
   isConfigured ? url : "https://unconfigured.invalid",
-  isConfigured ? key : "unconfigured"
+  isConfigured ? key : "unconfigured",
+  { auth: { experimental: { passkey: true } } }
 );

@@ -74,7 +74,7 @@ function InvoiceForm({ initial, customers, jobs, onCancel, onSave, onDelete, onV
   );
 }
 
-export default function Invoices({ invoices, customers, jobs, settings = {}, onSave, onDelete, onMarkPaid, draft, onDraftConsumed }) {
+export default function Invoices({ invoices, customers, jobs, settings = {}, onSave, onDelete, onMarkPaid, onEmail, draft, onDraftConsumed }) {
   const [filter, setFilter] = useState("unpaid");
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
@@ -190,7 +190,7 @@ export default function Invoices({ invoices, customers, jobs, settings = {}, onS
         />
       )}
 
-      {viewing && <InvoiceView invoice={viewing} customer={customerById(viewing.customer_id)} settings={settings} onClose={() => setViewing(null)} />}
+      {viewing && <InvoiceView invoice={viewing} customer={customerById(viewing.customer_id)} settings={settings} onClose={() => setViewing(null)} onEmail={onEmail} />}
     </div>
   );
 }

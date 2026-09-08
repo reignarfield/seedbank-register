@@ -75,3 +75,14 @@ export function dueStatus(customer, { soonDays = 7 } = {}) {
   if (diff <= soonDays) return "due_soon";
   return "scheduled";
 }
+
+// "09:00:00" -> "9am", "13:30:00" -> "1:30pm". Times are stored as Postgres
+// `time`, shown the way a text message would say them.
+export function formatTime(t) {
+  if (!t) return "";
+  const [h, m] = String(t).split(":").map(Number);
+  if (Number.isNaN(h)) return "";
+  const suffix = h >= 12 ? "pm" : "am";
+  const hour = h % 12 || 12;
+  return m ? `${hour}:${String(m).padStart(2, "0")}${suffix}` : `${hour}${suffix}`;
+}

@@ -1,5 +1,7 @@
-import React, { useState } from "react";
-import { Loader2, Building2, Car, Users, ClipboardList, Bell, Wrench, Globe, FlaskConical, Download, ChevronRight, MousePointerClick, ShieldAlert, LogOut, Plus } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { listPasskeys, registerPasskey, deletePasskey, passkeysSupported } from "../lib/api";
+import { pushAvailable, currentSubscription, subscribeThisDevice, unsubscribeThisDevice } from "../lib/push";
+import { Loader2, Building2, Car, Users, ClipboardList, Bell, Wrench, Globe, FlaskConical, Download, ChevronRight, MousePointerClick, ShieldAlert, LogOut, Plus, Fingerprint, Smartphone, Megaphone } from "lucide-react";
 import { formatDate, todayStr } from "../lib/dates";
 import { Card, Field, TextInput, Button, SectionTitle } from "./ui";
 import EditChecklistModal from "./EditChecklistModal";
@@ -83,6 +85,58 @@ export default function Settings({
   onLogout,
 }) {
   const [newRenewal, setNewRenewal] = useState(null); // { name, due_date } while adding
+
+  // Passkeys on this account, and whether this phone has one.
+  const [passkeys, setPasskeys] = useState(null);
+  const [passkeyMsg, setPasskeyMsg] = useState("");
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const canPasskey = passkeysSupported();
+  useEffect(() => {
+    if (!canPasskey) return;
+    listPasskeys().then(setPasskeys).catch(() => setPasskeys([]));
+  }, [canPasskey]);
+  const addPasskey = async () => {
+    setPasskeyBusy(true);
+    setPasskeyMsg("");
+    try {
+      await registerPasskey();
+      setPasskeys(await listPasskeys());
+      setPasskeyMsg("Done - next time, sign in with this phone.");
+    } catch (e) {
+      const m = String(e?.message || "");
+      setPasskeyMsg(/relying|rp|not configured/i.test(m) ? "Passkeys aren't switched on for this site yet (Supabase -> Authentication -> Passkeys)." : m || "Couldn't set that up.");
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
+
+  // Push: is this device subscribed?
+  const canPush = pushAvailable();
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMsg, setPushMsg] = useState("");
+  useEffect(() => {
+    if (!canPush) return;
+    currentSubscription().then((s) => setPushOn(!!s)).catch(() => {});
+  }, [canPush]);
+  const togglePush = async (on) => {
+    setPushBusy(true);
+    setPushMsg("");
+    try {
+      if (on) await subscribeThisDevice();
+      else await unsubscribeThisDevice();
+      setPushOn(on);
+    } catch (e) {
+      setPushMsg(e?.message || "Couldn't change that.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const pub = useDraft(
+    { public_tagline: settings.public_tagline || "", service_area: settings.service_area || "", public_blurb: settings.public_blurb || "", google_review_url: settings.google_review_url || "" },
+    (d) => onSave({ public_tagline: d.public_tagline.trim() || null, service_area: d.service_area.trim() || null, public_blurb: d.public_blurb.trim() || null, google_review_url: d.google_review_url.trim() || null })
+  );
   const business = useDraft({ abn: settings.abn || "", gst_registered: !!settings.gst_registered, invoice_due_days: settings.invoice_due_days ?? 14 }, onSave);
   const van = useDraft({ home_base_address: settings.home_base_address || "", mileage_rate_cents: settings.mileage_rate_cents ?? 88 }, async (d) => {
     const coords = d.home_base_address.trim() ? await geocode(d.home_base_address.trim()) : null;
@@ -188,6 +242,60 @@ export default function Settings({
         <Toggle label="Overdue invoice reminders" hint="Never to an invoice that's been marked paid." checked={reminders.draft.invoice_overdue} onChange={(v) => reminders.set("invoice_overdue", v)} />
         <Toggle label="Review requests the day after a job" checked={reminders.draft.review_request} onChange={(v) => reminders.set("review_request", v)} />
         <SaveRow dirty={reminders.dirty} saving={reminders.saving} onSave={() => reminders.save()} />
+      </Section>
+
+      <Section icon={Megaphone} title="Public page" blurb="The words on the booking page. Yours, not the app's.">
+        <div className="space-y-3">
+          <Field label="One line under the logo - what you do">
+            <TextInput value={pub.draft.public_tagline} onChange={(e) => pub.set("public_tagline", e.target.value)} placeholder="Window, pressure and solar panel cleaning" />
+          </Field>
+          <Field label="Where you work">
+            <TextInput value={pub.draft.service_area} onChange={(e) => pub.set("service_area", e.target.value)} placeholder="Northern Beaches and the North Shore" />
+          </Field>
+          <Field label="A short paragraph about you (optional)">
+            <TextInput value={pub.draft.public_blurb} onChange={(e) => pub.set("public_blurb", e.target.value)} placeholder="Owner-operated, fully insured, been doing this since 2019." />
+          </Field>
+          <Field label="Google reviews link (optional)">
+            <TextInput value={pub.draft.google_review_url} onChange={(e) => pub.set("google_review_url", e.target.value)} placeholder="https://g.page/r/..." />
+          </Field>
+          <p className="text-xs text-slate-400">Reviews are the strongest thing a new customer looks for. Google Business Profile → Ask for reviews → copy the link.</p>
+        </div>
+        <SaveRow dirty={pub.dirty} saving={pub.saving} onSave={() => pub.save()} />
+      </Section>
+
+      <Section icon={Fingerprint} title="Signing in" blurb="A passkey lets this phone sign you in with Face ID, a fingerprint or its PIN - no password to remember.">
+        {!canPasskey ? (
+          <p className="text-sm text-slate-500">This browser can't do passkeys. Sign in with your password.</p>
+        ) : (
+          <>
+            <div className="divide-y divide-slate-100">
+              {passkeys === null && <p className="text-sm text-slate-400 py-2">Checking…</p>}
+              {passkeys?.length === 0 && <p className="text-sm text-slate-500 py-2">No passkeys yet.</p>}
+              {(passkeys || []).map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0"><div className="text-sm text-slate-800 flex items-center gap-1.5"><Smartphone size={13} className="text-slate-400" /> {p.friendly_name || p.friendlyName || "A device"}</div><div className="text-xs text-slate-400">{p.created_at ? `added ${formatDate(String(p.created_at).slice(0, 10))}` : ""}</div></div>
+                  <button onClick={async () => { if (!confirm("Remove this passkey? That device will need the password again.")) return; await deletePasskey(p.id).catch(() => {}); setPasskeys(await listPasskeys().catch(() => [])); }} className="text-xs text-slate-500 hover:text-rose-700 shrink-0">Remove</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 mt-3">
+              <Button className="!px-4 !py-2 !text-xs" onClick={addPasskey} disabled={passkeyBusy}>{passkeyBusy ? <Loader2 size={13} className="animate-spin" /> : <Fingerprint size={13} />} Add this phone</Button>
+              {passkeyMsg && <span className="text-xs text-slate-600">{passkeyMsg}</span>}
+            </div>
+          </>
+        )}
+      </Section>
+
+      <Section icon={Bell} title="Notifications on this phone" blurb="A buzz when something needs you - overdue money, a new enquiry. Not switched on for anyone yet; this just readies the phone.">
+        {!canPush ? (
+          <p className="text-sm text-slate-500">Not set up for this build yet. Nothing to do here for now.</p>
+        ) : (
+          <>
+            <Toggle label="Allow notifications on this phone" hint={pushOn ? "This phone will get them once sending is switched on." : "You'll be asked to allow notifications."} checked={pushOn} onChange={togglePush} />
+            {pushBusy && <p className="text-xs text-slate-400">Working…</p>}
+            {pushMsg && <p className="text-xs text-rose-600">{pushMsg}</p>}
+          </>
+        )}
       </Section>
 
       <Section icon={ShieldAlert} title="Renewals" blurb="Insurance, licences, rego - anything with a date it mustn't slip past. They show on Today as they come up.">

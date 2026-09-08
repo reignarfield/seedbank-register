@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { CheckSquare, Square, MessageCircle, Pencil } from "lucide-react";
 import { Card } from "./ui";
-import { todayStr, formatDate } from "../lib/dates";
+import { todayStr, formatDate, formatTime } from "../lib/dates";
 import EditChecklistModal from "./EditChecklistModal";
 import { jobsToday, jobsTomorrow } from "../lib/today";
 
@@ -95,7 +95,7 @@ export default function MorningCheck({ jobs, customers, checklist, baseChecklist
                 if (!c) return null;
                 return (
                   <div key={j.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="text-slate-700 truncate">{c.name}</span>
+                    <span className="text-slate-700 truncate">{c.name}{j.scheduled_time ? <span className="text-slate-400"> · {formatTime(j.scheduled_time)}</span> : null}</span>
                     {c.phone ? (
                       <a href={`sms:${cleanPhone(c.phone)}`} className="flex items-center gap-1 text-blue-600 shrink-0 text-xs font-medium">
                         <MessageCircle size={13} /> Text

@@ -7,7 +7,7 @@
 // tomorrow come first; a one-off customer he hasn't seen in six months comes
 // last. Within a kind, the most overdue comes first.
 
-import { todayStr, addDays, daysBetween, formatDate, nextDueDate } from "./dates";
+import { todayStr, addDays, daysBetween, formatDate, formatTime, nextDueDate } from "./dates";
 import { BUSINESS, cap } from "./business";
 import { customersDue, customersLapsed, invoicesOverdue, jobsTomorrow, leadsNew, renewalsUpcoming } from "./today";
 
@@ -24,7 +24,7 @@ export const telLink = (phone) => (phone ? `tel:${cleanPhone(phone)}` : null);
 // he can change it in the messages app. Plain and short - it's a text.
 export const MESSAGES = {
   confirm: (c, job) =>
-    `Hi ${first(c.name)}, it's ${BUSINESS.name} - just confirming I'll be round tomorrow for your ${job?.job_type ? job.job_type.toLowerCase() : BUSINESS.vocab.service}. See you then!`,
+    `Hi ${first(c.name)}, it's ${BUSINESS.name} - just confirming I'll be round tomorrow${job?.scheduled_time ? ` around ${formatTime(job.scheduled_time)}` : ""} for your ${job?.job_type ? job.job_type.toLowerCase() : BUSINESS.vocab.service}. See you then!`,
   chase: (c, inv) =>
     `Hi ${first(c.name)}, ${BUSINESS.name} here - a friendly reminder that invoice ${shortId(inv.id)} for $${Number(inv.amount).toFixed(2)} was due ${formatDate(inv.due_date)}. Bank transfer or cash is fine. Thanks!`,
   due: (c) =>
@@ -67,7 +67,7 @@ export function buildTodos({ customers = [], jobs = [], invoices = [], quotes = 
       key: `confirm:${j.id}`,
       kind: "confirm",
       title: `Confirm ${c.name} for tomorrow`,
-      why: [j.job_type, c.address].filter(Boolean).join(" · "),
+      why: [j.scheduled_time ? formatTime(j.scheduled_time) : null, j.job_type, c.address].filter(Boolean).join(" · "),
       customer: c,
       ref: j,
       primary: c.phone ? { label: "Text", href: smsLink(c.phone, MESSAGES.confirm(c, j)), logs: `Texted ${c.name} to confirm tomorrow` } : { label: "No phone on file", disabled: true },

@@ -18,9 +18,13 @@ import {
   MapPin,
   PartyPopper,
   KeyRound,
+  UserPlus,
+  WifiOff,
 } from "lucide-react";
 import { Card, Button, EmptyState, TextInput, TextArea, money } from "./ui";
-import { todayStr, addDays, formatDate } from "../lib/dates";
+import { todayStr, addDays, formatDate, formatTime } from "../lib/dates";
+import QuickAddCustomer from "./QuickAddCustomer";
+import { BUSINESS } from "../lib/business";
 import { fetchRainChance } from "../lib/weather";
 import MorningCheck from "./MorningCheck";
 import { ActivityTodayLine } from "./ActivityFeed";
@@ -32,8 +36,8 @@ import { CompleteNoPricePrompt, JobForm } from "./Schedule";
 const cleanPhone = (p) => (p || "").replace(/[^0-9+]/g, "");
 const mapsLink = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
-function emptyTodayJob() {
-  return { customer_id: "", scheduled_date: todayStr(), job_type: "", price: "", notes: "", status: "scheduled" };
+function emptyTodayJob(customerId = "") {
+  return { customer_id: customerId, scheduled_date: todayStr(), scheduled_time: "", job_type: "", price: "", notes: "", status: "scheduled" };
 }
 
 // "Can't do it today" - a job that can't happen shouldn't just sit there
@@ -110,6 +114,7 @@ function JobRow({ job, customer, latestNote, overdue, onComplete, onReschedule, 
         <div className="min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="font-medium text-slate-900">{customer?.name || "Unknown customer"}</span>
+            {job.scheduled_time && <span className="text-xs font-medium text-blue-700">{formatTime(job.scheduled_time)}</span>}
             {overdue && (
               <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
                 <AlertTriangle size={11} /> {formatDate(job.scheduled_date)}
@@ -275,6 +280,8 @@ export default function TodaySimple({
   onTodoSnooze,
   onTodoDismiss,
   onTodoDone,
+  onQuickAddCustomer,
+  pendingOffline = 0,
   checklist,
   typeChecklists = {},
   onSaveChecklist,
@@ -296,7 +303,8 @@ export default function TodaySimple({
 }) {
   const [completingNoPrice, setCompletingNoPrice] = useState(null);
   const [reschedulingJob, setReschedulingJob] = useState(null);
-  const [addingJob, setAddingJob] = useState(false);
+  const [addingJob, setAddingJob] = useState(null); // null | a job draft
+  const [addingNew, setAddingNew] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
   const [addingNote, setAddingNote] = useState(false);
   const [rainChance, setRainChance] = useState(null);
@@ -362,8 +370,8 @@ export default function TodaySimple({
   const saveNewJob = async (form) => {
     setSavingJob(true);
     try {
-      await onSaveJob({ ...form, job_type: form.job_type || null, price: form.price === "" ? null : Number(form.price) });
-      setAddingJob(false);
+      await onSaveJob({ ...form, job_type: form.job_type || null, scheduled_time: form.scheduled_time || null, price: form.price === "" ? null : Number(form.price) });
+      setAddingJob(null);
     } finally {
       setSavingJob(false);
     }
@@ -398,10 +406,24 @@ export default function TodaySimple({
           <Button variant="secondary" className="flex-1 !py-1.5 !text-xs" onClick={() => setAddingNote(true)}>
             <StickyNote size={13} /> Add note
           </Button>
-          <Button variant="secondary" className="flex-1 !py-1.5 !text-xs" onClick={() => setAddingJob(true)}>
+          <Button variant="secondary" className="flex-1 !py-1.5 !text-xs" onClick={() => (customers.length ? setAddingJob(emptyTodayJob()) : setAddingNew(true))}>
             <Plus size={13} /> New job
           </Button>
         </div>
+
+        {pendingOffline > 0 && (
+          <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 text-sm">
+            <WifiOff size={15} className="shrink-0" /> {pendingOffline} change{pendingOffline === 1 ? "" : "s"} saved on the phone - they'll send when you're back in range.
+          </div>
+        )}
+
+        {customers.length === 0 && (
+          <Card className="p-5 border-blue-200 bg-blue-50/50">
+            <h2 className="font-semibold text-lg text-slate-900 mb-1">Start with your first customer</h2>
+            <p className="text-sm text-slate-600 mb-3">A name, a phone number, an address - then book their first {BUSINESS.vocab.job}. Everything else can wait.</p>
+            <Button className="w-full" onClick={() => setAddingNew(true)}><UserPlus size={16} /> Add a customer</Button>
+          </Card>
+        )}
 
         {overdueJobs.length > 0 && (
           <div>
@@ -434,9 +456,9 @@ export default function TodaySimple({
                 {todayTripKm > 0 && ` · ${todayTripKm.toFixed(todayTripKm % 1 === 0 ? 0 : 1)} km driven`}
               </div>
             </Card>
-          ) : (
+          ) : customers.length > 0 ? (
             <EmptyState icon={CalendarCheck} title="Nothing on today - enjoy it." />
-          )
+          ) : null
         ) : todaysJobs.length > 0 ? (
           <div>
             {overdueJobs.length > 0 && <div className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 mb-2">Today</div>}
@@ -501,8 +523,21 @@ export default function TodaySimple({
         />
       )}
 
-      {addingJob && (
-        <JobForm initial={emptyTodayJob()} customers={customers} onCancel={() => setAddingJob(false)} onSave={saveNewJob} saving={savingJob} />
+      {addingJob && !addingNew && (
+        <JobForm initial={addingJob} customers={customers} onCancel={() => setAddingJob(null)} onSave={saveNewJob} saving={savingJob} onSomeoneNew={() => setAddingNew(true)} />
+      )}
+
+      {addingNew && (
+        <QuickAddCustomer
+          thenBook
+          onCancel={() => setAddingNew(false)}
+          onSave={async (form, { book }) => {
+            const created = await onQuickAddCustomer(form);
+            setAddingNew(false);
+            if (book && created?.id) setAddingJob(emptyTodayJob(created.id));
+            else setAddingJob(null);
+          }}
+        />
       )}
 
       {addingNote && (

@@ -36,6 +36,31 @@ export async function requestPasswordReset(email) {
   if (error) throw error;
 }
 
+// Passkeys: Supabase's beta WebAuthn support. Available when the browser
+// can do WebAuthn and the project names this site as the relying party.
+export function passkeysSupported() {
+  return typeof window !== "undefined" && !!window.PublicKeyCredential && !!supabase.auth.signInWithPasskey;
+}
+export async function signInWithPasskey() {
+  const { data, error } = await supabase.auth.signInWithPasskey();
+  if (error) throw error;
+  return data?.session;
+}
+export async function registerPasskey() {
+  const { data, error } = await supabase.auth.registerPasskey();
+  if (error) throw error;
+  return data;
+}
+export async function listPasskeys() {
+  const { data, error } = await supabase.auth.passkey.list();
+  if (error) throw error;
+  return data || [];
+}
+export async function deletePasskey(passkeyId) {
+  const { error } = await supabase.auth.passkey.delete({ passkeyId });
+  if (error) throw error;
+}
+
 export async function updatePassword(newPassword) {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
@@ -342,6 +367,48 @@ export async function addCustomerNote(customerId, note) {
   const { data, error } = await supabase.from("customer_notes").insert({ customer_id: customerId, note }).select().single();
   if (error) throw error;
   return data;
+}
+
+// ---------------------------------------------------------------------------
+// The public page's few words, through a view that exposes only those columns.
+// ---------------------------------------------------------------------------
+export async function fetchPublicProfile() {
+  const { data, error } = await supabase.from("public_profile").select("*").maybeSingle();
+  if (error) throw error;
+  return data || {};
+}
+
+// ---------------------------------------------------------------------------
+// Email, through the send-email Edge Function (which holds the Resend key).
+// A 503 means it isn't set up yet; the message is meant to be shown as-is.
+// ---------------------------------------------------------------------------
+export async function sendEmail({ to, subject, html, text, reply_to }) {
+  const { data, error } = await supabase.functions.invoke("send-email", { body: { to, subject, html, text, reply_to } });
+  if (error) {
+    let detail = error.message;
+    try {
+      const body = await error.context?.json?.();
+      if (body?.error) detail = body.error;
+    } catch { /* keep the generic message */ }
+    throw new Error(detail || "Couldn't send that email.");
+  }
+  return data;
+}
+export async function markInvoiceSent(id, to) {
+  const { error } = await supabase.from("invoices").update({ sent_at: new Date().toISOString(), sent_to: to }).eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Push subscriptions (scaffold - nothing sends yet)
+// ---------------------------------------------------------------------------
+export async function savePushSubscription({ endpoint, keys, user_agent }) {
+  const { error } = await supabase.from("push_subscriptions").upsert({ endpoint, keys, user_agent, disabled_at: null }, { onConflict: "endpoint" });
+  if (error) throw error;
+}
+export async function removePushSubscription(endpoint) {
+  const { error } = await supabase.from("push_subscriptions").update({ disabled_at: new Date().toISOString() }).eq("endpoint", endpoint);
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------------

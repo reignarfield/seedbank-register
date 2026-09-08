@@ -39,6 +39,7 @@ export default function Money({
   onSaveInvoice,
   onDeleteInvoice,
   onMarkInvoicePaid,
+  onEmailInvoice,
   onSaveExpense,
   onDeleteExpense,
   onSaveTrip,
@@ -98,7 +99,7 @@ export default function Money({
       </div>
 
       {tab === "invoices" && (
-        <Invoices invoices={invoices} customers={customers} jobs={jobs} settings={settings} onSave={onSaveInvoice} onDelete={onDeleteInvoice} onMarkPaid={onMarkInvoicePaid} draft={invoiceDraft} onDraftConsumed={onInvoiceDraftConsumed} />
+        <Invoices invoices={invoices} customers={customers} jobs={jobs} settings={settings} onSave={onSaveInvoice} onDelete={onDeleteInvoice} onMarkPaid={onMarkInvoicePaid} onEmail={onEmailInvoice} draft={invoiceDraft} onDraftConsumed={onInvoiceDraftConsumed} />
       )}
       {tab === "quotes" && (
         <Quotes quotes={quotes} customers={customers} onSave={onSaveQuote} onDelete={onDeleteQuote} onScheduleFromQuote={onScheduleFromQuote} onConvertAndSchedule={onConvertQuoteAndSchedule} draft={quoteDraft} onDraftConsumed={onQuoteDraftConsumed} />

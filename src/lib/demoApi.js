@@ -395,3 +395,8 @@ export const fetchTodoState = async () => ({ ...todoState });
 export const setTodoState = async (key, { snoozed_until = null, dismissed_at = null }) => {
   todoState = { ...todoState, [key]: { key, snoozed_until, dismissed_at, updated_at: new Date().toISOString() } };
 };
+
+// ---- Things the demo pretends about ----
+export const markInvoiceSent = async (id, to) => {
+  db.invoices = db.invoices.map((i) => (i.id === id ? { ...i, sent_at: new Date().toISOString(), sent_to: to } : i));
+};

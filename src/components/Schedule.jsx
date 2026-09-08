@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Plus, CalendarDays, Loader2, X, AlertTriangle, Archive, Ban } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, PrimaryBar, money } from "./ui";
-import { formatDate, todayStr, addDays, nextDueDate } from "../lib/dates";
+import { formatDate, formatTime, todayStr, addDays, nextDueDate } from "../lib/dates";
 import { customersDue } from "../lib/today";
 import { PRICE_GROUPS } from "../lib/pricing";
 
@@ -12,6 +12,7 @@ function emptyJob(customerId = "", date = todayStr(), quote = null) {
   return {
     customer_id: customerId,
     scheduled_date: date,
+    scheduled_time: "",
     job_type: "",
     price: quote?.amount ?? "",
     notes: quote?.description || "",
@@ -33,7 +34,7 @@ function priceGuide(jobType) {
 
 // Everything that isn't the one main action on a row lives in here: cancel
 // and archive for a booked job. The row itself stays to one labelled button.
-export function JobForm({ initial, customers, onCancel, onSave, saving, onCancelJob, onArchive }) {
+export function JobForm({ initial, customers, onCancel, onSave, saving, onCancelJob, onArchive, onSomeoneNew }) {
   const [form, setForm] = useState(initial);
   useEffect(() => setForm(initial), [initial]);
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -60,10 +61,18 @@ export function JobForm({ initial, customers, onCancel, onSave, saving, onCancel
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </Select>
+            {!isEdit && onSomeoneNew && (
+              <button type="button" onClick={onSomeoneNew} className="text-xs text-blue-600 hover:underline mt-1">Someone new? Add them in three fields</button>
+            )}
           </Field>
-          <Field label="Date" required>
-            <TextInput type="date" value={form.scheduled_date} onChange={(e) => set("scheduled_date", e.target.value)} />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Date" required>
+              <TextInput type="date" value={form.scheduled_date} onChange={(e) => set("scheduled_date", e.target.value)} />
+            </Field>
+            <Field label="Time (optional)">
+              <TextInput type="time" value={(form.scheduled_time || "").slice(0, 5)} onChange={(e) => set("scheduled_time", e.target.value)} />
+            </Field>
+          </div>
           <Field label="Job type">
             <Select value={form.job_type || ""} onChange={(e) => set("job_type", e.target.value)}>
               <option value="">— general —</option>
@@ -215,7 +224,7 @@ export default function Schedule({
   const save = async (form) => {
     setSaving(true);
     try {
-      const payload = { ...form, job_type: form.job_type || null, price: form.price === "" ? null : Number(form.price) };
+      const payload = { ...form, job_type: form.job_type || null, scheduled_time: form.scheduled_time || null, price: form.price === "" ? null : Number(form.price) };
       await onSave(payload);
       setEditing(null);
     } finally {
@@ -275,7 +284,7 @@ export default function Schedule({
                             {j.status !== "scheduled" && <StatusPill status={j.status} />}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5 truncate">
-                            {[j.job_type, c?.address].filter(Boolean).join(" · ") || "—"}
+                            {[j.scheduled_time ? formatTime(j.scheduled_time) : null, j.job_type, c?.address].filter(Boolean).join(" · ") || "—"}
                           </div>
                         </button>
                         <div className="text-right shrink-0">

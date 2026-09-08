@@ -19,6 +19,17 @@ export const signIn = (...a) => real.signIn(...a);
 export const signOut = (...a) => real.signOut(...a);
 export const requestPasswordReset = (...a) => real.requestPasswordReset(...a);
 export const updatePassword = (...a) => real.updatePassword(...a);
+export const passkeysSupported = (...a) => real.passkeysSupported(...a);
+export const signInWithPasskey = (...a) => real.signInWithPasskey(...a);
+export const registerPasskey = (...a) => real.registerPasskey(...a);
+export const listPasskeys = (...a) => real.listPasskeys(...a);
+export const deletePasskey = (...a) => real.deletePasskey(...a);
+
+// The public page's words, and email - both always real.
+export const fetchPublicProfile = (...a) => real.fetchPublicProfile(...a);
+export const sendEmail = (...a) => real.sendEmail(...a);
+export const savePushSubscription = (...a) => real.savePushSubscription(...a);
+export const removePushSubscription = (...a) => real.removePushSubscription(...a);
 
 // Public booking form - a real enquiry from a real visitor, always real.
 export const submitPublicLead = (...a) => real.submitPublicLead(...a);
@@ -57,6 +68,7 @@ export const fetchInvoices = (...a) => impl().fetchInvoices(...a);
 export const upsertInvoice = (...a) => impl().upsertInvoice(...a);
 export const archiveInvoice = (...a) => impl().archiveInvoice(...a);
 export const markInvoicePaid = (...a) => impl().markInvoicePaid(...a);
+export const markInvoiceSent = (...a) => impl().markInvoiceSent(...a);
 
 export const fetchLeads = (...a) => impl().fetchLeads(...a);
 export const upsertLead = (...a) => impl().upsertLead(...a);

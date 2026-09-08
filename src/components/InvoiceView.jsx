@@ -1,5 +1,6 @@
-import React from "react";
-import { Printer, X } from "lucide-react";
+import React, { useState } from "react";
+import { Printer, X, Send, Loader2, Check } from "lucide-react";
+import { TextInput } from "./ui";
 import { Button, money } from "./ui";
 import { formatDateLong } from "../lib/dates";
 import { BUSINESS } from "../lib/business";
@@ -86,8 +87,27 @@ export function printInvoice(args) {
   setTimeout(() => w.print(), 250);
 }
 
-export default function InvoiceView({ invoice, customer, settings, onClose }) {
+export default function InvoiceView({ invoice, customer, settings, onClose, onEmail }) {
   const gst = !!settings?.gst_registered;
+  const [to, setTo] = useState(customer?.email || "");
+  const [composing, setComposing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(!!invoice.sent_at);
+  const [sendError, setSendError] = useState("");
+
+  const send = async () => {
+    setSendError("");
+    setSending(true);
+    try {
+      await onEmail(invoice, to.trim(), invoiceHtml({ invoice, customer, settings }));
+      setSent(true);
+      setComposing(false);
+    } catch (e) {
+      setSendError(e?.message || "Couldn't send that.");
+    } finally {
+      setSending(false);
+    }
+  };
   const amount = Number(invoice.amount || 0);
   const gstPart = gst ? amount / 11 : 0;
 
@@ -113,10 +133,26 @@ export default function InvoiceView({ invoice, customer, settings, onClose }) {
             {!gst && <div className="text-xs text-slate-400 mt-1">No GST charged - not registered.</div>}
           </div>
           {!settings?.abn && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">No ABN set - an invoice needs one. Add it in Settings.</p>}
+          {sent && !composing && (
+            <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 flex items-center gap-1.5"><Check size={13} /> Emailed{invoice.sent_to ? ` to ${invoice.sent_to}` : ""}{invoice.sent_at ? ` on ${formatDateLong(invoice.sent_at.slice(0, 10))}` : ""}.</p>
+          )}
+          {composing && (
+            <div className="border border-blue-200 bg-blue-50/60 rounded-xl p-3 space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">Email this invoice</div>
+              <TextInput type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="customer@email.com" autoFocus />
+              <p className="text-xs text-slate-500">They'll get exactly what's shown above, with a note saying how to pay.</p>
+              {sendError && <p className="text-xs text-rose-600">{sendError}</p>}
+              <div className="flex gap-2">
+                <Button variant="secondary" className="flex-1 !py-2 !text-xs" onClick={() => setComposing(false)}>Cancel</Button>
+                <Button className="flex-1 !py-2 !text-xs" onClick={send} disabled={sending || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(to)}>{sending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} {sent ? "Send again" : "Send"}</Button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 px-5 py-4 border-t border-slate-100">
-          <Button variant="secondary" className="flex-1" onClick={onClose}>Close</Button>
-          <Button className="flex-1" onClick={() => printInvoice({ invoice, customer, settings })}><Printer size={15} /> Print / save PDF</Button>
+          <Button variant="secondary" className="!px-3" onClick={onClose}>Close</Button>
+          <Button variant="secondary" className="flex-1" onClick={() => printInvoice({ invoice, customer, settings })}><Printer size={15} /> Print</Button>
+          {onEmail && !composing && <Button className="flex-1" onClick={() => setComposing(true)}><Send size={15} /> {sent ? "Email again" : "Email it"}</Button>}
         </div>
       </div>
     </div>

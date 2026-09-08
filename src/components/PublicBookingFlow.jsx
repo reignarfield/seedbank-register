@@ -1,10 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ChevronDown, CheckCircle2, Loader2, X, ClipboardList } from "lucide-react";
 import { submitPublicLead } from "../lib/api";
 import { Field, TextArea, Button } from "./ui";
 import { PRICE_GROUPS, MINIMUM_SERVICE_FEE } from "../lib/pricing";
-
-const BUSINESS_PHONE = import.meta.env.VITE_BUSINESS_PHONE || "";
+import { BUSINESS } from "../lib/business";
 
 // Bigger text and taller tap targets than the internal app - this page is
 // for anyone, including people who aren't comfortable with forms or have
@@ -27,7 +26,9 @@ function messageFromServices(services) {
   return `I'd like a quote for:\n${services.map((s) => `- ${s}`).join("\n")}`;
 }
 
-export default function PublicBookingFlow() {
+const norm = (s) => (s || "").toLowerCase();
+
+export default function PublicBookingFlow({ query = "" }) {
   const [openGroups, setOpenGroups] = useState(() => new Set());
   const [selected, setSelected] = useState([]); // "Group - Item" strings, in the order picked
   const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", message: "" });
@@ -35,6 +36,22 @@ export default function PublicBookingFlow() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+
+  // The search: a group stays if its title or any item matches; only the
+  // matching items are shown, and matching groups open themselves.
+  const q = norm(query.trim());
+  const groups = useMemo(() => {
+    if (!q) return PRICE_GROUPS;
+    return PRICE_GROUPS.map((g) => {
+      const titleHit = norm(g.title).includes(q) || norm(g.note).includes(q);
+      const items = titleHit ? g.items : g.items.filter((i) => norm(i.name).includes(q) || norm(i.extra).includes(q));
+      return items.length ? { ...g, items } : null;
+    }).filter(Boolean);
+  }, [q]);
+
+  useEffect(() => {
+    if (q) setOpenGroups(new Set(groups.map((g) => g.title)));
+  }, [q, groups]);
 
   const toggleGroup = (title) => {
     setOpenGroups((prev) => {
@@ -84,27 +101,30 @@ export default function PublicBookingFlow() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-900">
-        <strong>${MINIMUM_SERVICE_FEE} minimum service fee.</strong> Tap a category to see prices and tick anything
-        you're after - or skip straight to the form below and we'll call to ask.
-      </div>
+      {!q && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-900">
+          <strong>${MINIMUM_SERVICE_FEE} minimum service fee.</strong> Tap a category to see prices and tick anything
+          you're after - or skip straight to the form below and we'll call to ask.
+        </div>
+      )}
+
+      {q && groups.length === 0 && (
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-5 text-center text-sm text-slate-600">
+          Nothing called “{query.trim()}” on the list - but we probably do it. Put it in the form below and we'll call to confirm.
+        </div>
+      )}
 
       <div className="space-y-2.5">
-        {PRICE_GROUPS.map((group) => {
+        {groups.map((group) => {
           const open = openGroups.has(group.title);
           const groupSelectedCount = group.items.filter((item) => selected.includes(`${group.title} - ${item.name}`)).length;
           return (
             <div key={group.title} className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-              <button
-                onClick={() => toggleGroup(group.title)}
-                className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 text-left"
-              >
+              <button onClick={() => toggleGroup(group.title)} className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 text-left">
                 <span className="flex items-center gap-2">
                   <span className="text-sm font-semibold uppercase tracking-wide text-blue-700">{group.title}</span>
                   {groupSelectedCount > 0 && (
-                    <span className="w-5 h-5 flex items-center justify-center rounded-full bg-blue-600 text-white text-[11px] font-semibold">
-                      {groupSelectedCount}
-                    </span>
+                    <span className="w-5 h-5 flex items-center justify-center rounded-full bg-blue-600 text-white text-[11px] font-semibold">{groupSelectedCount}</span>
                   )}
                 </span>
                 <ChevronDown size={18} className={`text-slate-400 transition-transform shrink-0 ${open ? "rotate-180" : ""}`} />
@@ -117,13 +137,10 @@ export default function PublicBookingFlow() {
                       const key = `${group.title} - ${item.name}`;
                       const checked = selected.includes(key);
                       return (
-                        <label
-                          key={item.name}
-                          className={`flex items-center justify-between gap-3 px-4 sm:px-5 py-3 cursor-pointer transition-colors ${checked ? "bg-blue-50/60" : "hover:bg-slate-50"}`}
-                        >
+                        <label key={item.name} className={`flex items-center justify-between gap-3 px-4 sm:px-5 py-3 cursor-pointer transition-colors ${checked ? "bg-blue-50/60" : "hover:bg-slate-50"}`}>
                           <span className="flex items-center gap-3 min-w-0">
-                            <input type="checkbox" checked={checked} onChange={() => toggleService(key)} className="w-4 h-4 accent-blue-600 shrink-0" />
-                            <span className="text-sm text-slate-700">{item.name}</span>
+                            <input type="checkbox" checked={checked} onChange={() => toggleService(key)} className="w-5 h-5 accent-blue-600 shrink-0" />
+                            <span className="text-base text-slate-700">{item.name}</span>
                           </span>
                           <span className="text-right shrink-0">
                             <span className="text-sm font-semibold text-slate-900 tabular-nums">{item.price}</span>
@@ -150,42 +167,32 @@ export default function PublicBookingFlow() {
             {selected.map((label) => (
               <div key={label} className="flex items-center justify-between gap-2 text-sm text-slate-600">
                 <span className="truncate">{label}</span>
-                <button onClick={() => toggleService(label)} title="Remove" className="text-slate-300 hover:text-rose-500 shrink-0">
-                  <X size={14} />
-                </button>
+                <button onClick={() => toggleService(label)} title="Remove" className="text-slate-300 hover:text-rose-500 shrink-0"><X size={14} /></button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h1 className="font-semibold text-xl text-slate-900 mb-1">Your details</h1>
-        <p className="text-base text-slate-500 mb-5">
-          Just your name and either a phone number or an email - that's all we need to get back to you.
-        </p>
+      <div id="quote" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <h2 className="font-semibold text-xl text-slate-900 mb-1">Your details</h2>
+        <p className="text-base text-slate-500 mb-5">Just your name and either a phone number or an email - that's all we need to get back to you.</p>
         <div className="space-y-4">
           <Field label="Your name" required>
-            <BigTextInput value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Your name" />
+            <BigTextInput value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Your name" autoComplete="name" />
           </Field>
           <Field label="Phone number">
-            <BigTextInput type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="04xx xxx xxx" />
+            <BigTextInput type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="04xx xxx xxx" autoComplete="tel" />
           </Field>
           <Field label="Email">
-            <BigTextInput type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@email.com" />
+            <BigTextInput type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@email.com" autoComplete="email" />
           </Field>
-          <p className="text-sm text-slate-400 -mt-2">You only need to fill in one of phone or email - whichever's easiest for you.</p>
+          <p className="text-sm text-slate-400 -mt-2">You only need one of phone or email - whichever's easiest for you.</p>
           <Field label="Property address (optional)">
-            <BigTextInput value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, suburb" />
+            <BigTextInput value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, suburb" autoComplete="street-address" />
           </Field>
           <Field label="Anything else? (optional)">
-            <TextArea
-              rows={3}
-              value={effectiveMessage}
-              onChange={(e) => set("message", e.target.value)}
-              placeholder="e.g. Single-storey, 12 windows, first clean - or leave blank and we'll call to ask"
-              className="!text-base !py-3.5"
-            />
+            <TextArea rows={3} value={effectiveMessage} onChange={(e) => set("message", e.target.value)} placeholder="e.g. Single-storey, 12 windows, first clean - or leave blank and we'll call to ask" className="!text-base !py-3.5" />
           </Field>
           {error && <p className="text-base text-rose-600">{error}</p>}
           <Button className="w-full !text-lg !py-4" onClick={submit} disabled={!canSubmit || busy}>
@@ -198,7 +205,7 @@ export default function PublicBookingFlow() {
       <div className="text-center text-xs text-slate-400 px-2">
         Payments accepted: cash, bank transfer, invoice, cheque, or card (1.8% surcharge). NDIS-funded services available.
         Prices are a guide only and may change -{" "}
-        {BUSINESS_PHONE ? <a href={`tel:${BUSINESS_PHONE.replace(/[^0-9+]/g, "")}`} className="underline">call Tyson</a> : "contact Tyson"} to confirm before booking.
+        {BUSINESS.phone ? <a href={`tel:${BUSINESS.phone.replace(/[^0-9+]/g, "")}`} className="underline">call to confirm</a> : "contact us to confirm"} before booking.
       </div>
     </div>
   );
