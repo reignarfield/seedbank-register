@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Phone, Mail, Search, Star, ShieldCheck, MapPin, ArrowRight, Zap } from "lucide-react";
+import { Phone, Mail, Search, Star, ShieldCheck, MapPin, ArrowRight, Zap, Instagram, Facebook } from "lucide-react";
 import PublicBookingFlow from "./PublicBookingFlow";
 import { fetchPublicProfile, getSession } from "../lib/api";
 import { BUSINESS } from "../lib/business";
@@ -28,6 +28,7 @@ export default function PublicSite() {
   const area = profile?.service_area;
   const abn = profile?.abn;
   const reviews = profile?.google_review_url;
+  const reviewCount = profile?.review_count;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -56,7 +57,7 @@ export default function PublicSite() {
             {abn && <span className="text-slate-400">ABN {abn}</span>}
             {reviews && (
               <a href={reviews} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-700 hover:underline">
-                <Star size={14} className="text-amber-500 fill-amber-400" /> Google reviews
+                <Star size={14} className="text-amber-500 fill-amber-400" /> {reviewCount ? `${reviewCount}+ five-star reviews` : "Google reviews"}
               </a>
             )}
           </div>
@@ -102,6 +103,13 @@ export default function PublicSite() {
                   <Mail size={14} /> {BUSINESS.email}
                 </a>
               )}
+            </div>
+          )}
+
+          {(profile?.instagram_url || profile?.facebook_url) && (
+            <div className="flex items-center justify-center gap-4 mt-5">
+              {profile.instagram_url && <a href={profile.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram" className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-700 hover:border-blue-300"><Instagram size={18} /></a>}
+              {profile.facebook_url && <a href={profile.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook" className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-blue-700 hover:border-blue-300"><Facebook size={18} /></a>}
             </div>
           )}
 

@@ -30,6 +30,11 @@ export const PRICE_GROUPS = [
     items: [{ name: "20 panels", price: "$150" }],
   },
   {
+    title: "Gutter Cleaning",
+    note: "Safe, single-storey roofs. Price depends on how full they are - worst case is quoted on the day.",
+    items: [{ name: "Safe roofs", price: "Under $100" }],
+  },
+  {
     title: "Car Cleaning",
     note: "In & Out wash includes outside wash/wax/detail/dry/tyre shine/rim clean, plus an inside essential clean. Deep clean adds engine bay, carpets and seats, and every panel gap.",
     items: [

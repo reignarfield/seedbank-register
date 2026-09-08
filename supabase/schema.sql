@@ -610,10 +610,13 @@ alter table public.settings add column if not exists service_area text;
 alter table public.settings add column if not exists google_review_url text;
 alter table public.settings add column if not exists public_tagline text;
 alter table public.settings add column if not exists public_blurb text;
+alter table public.settings add column if not exists instagram_url text;
+alter table public.settings add column if not exists facebook_url text;
+alter table public.settings add column if not exists review_count integer;
 
 create or replace view public.public_profile
 with (security_invoker = false) as
-  select service_area, google_review_url, public_tagline, public_blurb, abn, gst_registered
+  select service_area, google_review_url, public_tagline, public_blurb, abn, gst_registered, instagram_url, facebook_url, review_count
   from public.settings where id = true;
 grant select on public.public_profile to anon, authenticated;
 

@@ -134,8 +134,8 @@ export default function Settings({
   };
 
   const pub = useDraft(
-    { public_tagline: settings.public_tagline || "", service_area: settings.service_area || "", public_blurb: settings.public_blurb || "", google_review_url: settings.google_review_url || "" },
-    (d) => onSave({ public_tagline: d.public_tagline.trim() || null, service_area: d.service_area.trim() || null, public_blurb: d.public_blurb.trim() || null, google_review_url: d.google_review_url.trim() || null })
+    { public_tagline: settings.public_tagline || "", service_area: settings.service_area || "", public_blurb: settings.public_blurb || "", google_review_url: settings.google_review_url || "", review_count: settings.review_count ?? "", instagram_url: settings.instagram_url || "", facebook_url: settings.facebook_url || "" },
+    (d) => onSave({ public_tagline: d.public_tagline.trim() || null, service_area: d.service_area.trim() || null, public_blurb: d.public_blurb.trim() || null, google_review_url: d.google_review_url.trim() || null, review_count: d.review_count === "" ? null : Number(d.review_count) || null, instagram_url: d.instagram_url.trim() || null, facebook_url: d.facebook_url.trim() || null })
   );
   const business = useDraft({ abn: settings.abn || "", gst_registered: !!settings.gst_registered, invoice_due_days: settings.invoice_due_days ?? 14 }, onSave);
   const van = useDraft({ home_base_address: settings.home_base_address || "", mileage_rate_cents: settings.mileage_rate_cents ?? 88 }, async (d) => {
@@ -258,7 +258,18 @@ export default function Settings({
           <Field label="Google reviews link (optional)">
             <TextInput value={pub.draft.google_review_url} onChange={(e) => pub.set("google_review_url", e.target.value)} placeholder="https://g.page/r/..." />
           </Field>
-          <p className="text-xs text-slate-400">Reviews are the strongest thing a new customer looks for. Google Business Profile → Ask for reviews → copy the link.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Field label="How many 5-star reviews">
+              <TextInput type="number" inputMode="numeric" value={pub.draft.review_count} onChange={(e) => pub.set("review_count", e.target.value)} placeholder="105" />
+            </Field>
+            <Field label="Instagram">
+              <TextInput value={pub.draft.instagram_url} onChange={(e) => pub.set("instagram_url", e.target.value)} placeholder="https://instagram.com/..." />
+            </Field>
+            <Field label="Facebook">
+              <TextInput value={pub.draft.facebook_url} onChange={(e) => pub.set("facebook_url", e.target.value)} placeholder="https://facebook.com/..." />
+            </Field>
+          </div>
+          <p className="text-xs text-slate-400">Reviews are the strongest thing a new customer looks for. Google Business Profile → Ask for reviews → copy the link. Update the count now and then - it's shown on the page.</p>
         </div>
         <SaveRow dirty={pub.dirty} saving={pub.saving} onSave={() => pub.save()} />
       </Section>

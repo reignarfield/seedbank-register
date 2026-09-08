@@ -11,14 +11,14 @@ const T = todayStr();
 
 function seed() {
   const customers = [
-    { id: "dc1", name: "Sarah Nguyen", phone: "0411 222 333", email: "sarah.n@example.com", address: "12 Ocean St, Bondi NSW 2026", notes: "Prefers mornings.", access_notes: "Side gate, code 4417. Small dog - friendly.", frequency_weeks: 8, last_service_date: addDays(T, -56), status: "active", lat: -33.8915, lng: 151.2767 },
-    { id: "dc2", name: "Marcus Webb", phone: "0422 888 190", email: "m.webb@example.com", address: "7 Kalang Ave, Manly NSW 2095", notes: "", access_notes: "Ladder access tight on the east side.", frequency_weeks: 12, last_service_date: addDays(T, -88), status: "active", lat: -33.7971, lng: 151.2885 },
-    { id: "dc3", name: "Priya Raman", phone: "0433 610 402", email: "priya.r@example.com", address: "204/9 Harbour Mill, Pyrmont NSW 2009", notes: "Apartment - book lift with building manager.", access_notes: "Intercom 204. Lift key from concierge.", frequency_weeks: 6, last_service_date: addDays(T, -5), status: "active", lat: -33.8697, lng: 151.1953 },
-    { id: "dc4", name: "Dave Kowalski", phone: "0400 771 265", email: "", address: "31 Grandview Pde, Vaucluse NSW 2030", notes: "Two-storey, lots of glass. Big job.", access_notes: "Park on the street, driveway is steep.", frequency_weeks: null, last_service_date: addDays(T, -212), status: "active", lat: -33.8570, lng: 151.2790 },
-    { id: "dc5", name: "Helen Fraser", phone: "0417 305 118", email: "hfraser@example.com", address: "88 Sailors Bay Rd, Northbridge NSW 2063", notes: "", access_notes: "", frequency_weeks: null, last_service_date: addDays(T, -240), status: "active", lat: -33.8134, lng: 151.2181 },
-    { id: "dc6", name: "Tom & Aleisha Brady", phone: "0466 019 774", email: "bradyhouse@example.com", address: "5 Fern Cl, Frenchs Forest NSW 2086", notes: "Solar panels done at the same time.", access_notes: "Roof access via garage.", frequency_weeks: 26, last_service_date: addDays(T, -170), status: "active", lat: -33.7460, lng: 151.2265 },
-    { id: "dc7", name: "Riverside Dental", phone: "02 9555 1180", email: "admin@example.com", address: "Shop 3/44 Great North Rd, Five Dock NSW 2046", notes: "Commercial - invoice monthly, pays by transfer.", access_notes: "Before 8am only.", frequency_weeks: 4, last_service_date: addDays(T, -30), status: "active", lat: -33.8686, lng: 151.1290 },
-    { id: "dc8", name: "Greg Mullins", phone: "0428 447 902", email: "", address: "17 Wolseley Rd, Mosman NSW 2088", notes: "Paused while renovating.", access_notes: "", frequency_weeks: 8, last_service_date: addDays(T, -120), status: "paused", lat: -33.8290, lng: 151.2440 },
+    { id: "dc1", name: "Sarah Nguyen", phone: "0411 222 333", email: "sarah.n@example.com", address: "12 Marsh St, Armidale NSW 2350", notes: "Prefers mornings.", access_notes: "Side gate, code 4417. Small dog - friendly.", frequency_weeks: 8, last_service_date: addDays(T, -56), status: "active", lat: -30.5124, lng: 151.6672 },
+    { id: "dc2", name: "Marcus Webb", phone: "0422 888 190", email: "m.webb@example.com", address: "7 Salisbury St, Uralla NSW 2358", notes: "", access_notes: "Ladder access tight on the east side.", frequency_weeks: 12, last_service_date: addDays(T, -88), status: "active", lat: -30.6412, lng: 151.5011 },
+    { id: "dc3", name: "Priya Raman", phone: "0433 610 402", email: "priya.r@example.com", address: "2/9 Beardy St, Armidale NSW 2350", notes: "Apartment - book lift with building manager.", access_notes: "Intercom 204. Lift key from concierge.", frequency_weeks: 6, last_service_date: addDays(T, -5), status: "active", lat: -30.5140, lng: 151.6640 },
+    { id: "dc4", name: "Dave Kowalski", phone: "0400 771 265", email: "", address: "31 Kentucky St, Armidale NSW 2350", notes: "Two-storey, lots of glass. Big job.", access_notes: "Park on the street, driveway is steep.", frequency_weeks: null, last_service_date: addDays(T, -212), status: "active", lat: -30.5178, lng: 151.6580 },
+    { id: "dc5", name: "Helen Fraser", phone: "0417 305 118", email: "hfraser@example.com", address: "88 Bridge St, Uralla NSW 2358", notes: "", access_notes: "", frequency_weeks: null, last_service_date: addDays(T, -240), status: "active", lat: -30.6395, lng: 151.5040 },
+    { id: "dc6", name: "Tom & Aleisha Brady", phone: "0466 019 774", email: "bradyhouse@example.com", address: "5 Garibaldi St, Armidale NSW 2350", notes: "Solar panels done at the same time.", access_notes: "Roof access via garage.", frequency_weeks: 26, last_service_date: addDays(T, -170), status: "active", lat: -30.5090, lng: 151.6700 },
+    { id: "dc7", name: "Riverside Dental", phone: "02 9555 1180", email: "admin@example.com", address: "Shop 3/44 Rusden St, Armidale NSW 2350", notes: "Commercial - invoice monthly, pays by transfer.", access_notes: "Before 8am only.", frequency_weeks: 4, last_service_date: addDays(T, -30), status: "active", lat: -30.5135, lng: 151.6655 },
+    { id: "dc8", name: "Greg Mullins", phone: "0428 447 902", email: "", address: "17 Hill St, Uralla NSW 2358", notes: "Paused while renovating.", access_notes: "", frequency_weeks: 8, last_service_date: addDays(T, -120), status: "paused", lat: -30.6430, lng: 151.4990 },
   ];
 
   const quotes = [
@@ -55,13 +55,13 @@ function seed() {
   ];
 
   const leads = [
-    { id: "dl1", name: "Janine Cooper", phone: "0455 882 013", email: "janine.c@example.com", address: "3 Bay St, Rozelle NSW 2039", message: "After a quote for the driveway and front path.", status: "quoted", source: "google", created_at: new Date(Date.parse(addDays(T, -4))).toISOString() },
-    { id: "dl2", name: "Ahmed Hassan", phone: "0432 118 776", email: "", address: "22 Wattle Rd, Casula NSW 2170", message: "Two storey house, windows inside and out. How much roughly?", status: "new", source: "direct", created_at: new Date(Date.parse(addDays(T, -1))).toISOString() },
+    { id: "dl1", name: "Janine Cooper", phone: "0455 882 013", email: "janine.c@example.com", address: "3 Faulkner St, Armidale NSW 2350", message: "After a quote for the driveway and front path.", status: "quoted", source: "google", created_at: new Date(Date.parse(addDays(T, -4))).toISOString() },
+    { id: "dl2", name: "Ahmed Hassan", phone: "0432 118 776", email: "", address: "22 Queen St, Uralla NSW 2358", message: "Two storey house, windows inside and out. How much roughly?", status: "new", source: "direct", created_at: new Date(Date.parse(addDays(T, -1))).toISOString() },
     { id: "dl3", name: "Kelly Osborne", phone: "0407 992 335", email: "kelly@example.com", address: "", message: "Do you do bond cleans? Moving out end of month.", status: "new", source: "facebook", created_at: new Date().toISOString() },
   ];
 
   const expenses = [
-    { id: "de1", expense_date: addDays(T, -2), category: "fuel", amount: 92.4, note: "Servo - Mona Vale Rd" },
+    { id: "de1", expense_date: addDays(T, -2), category: "fuel", amount: 92.4, note: "Servo - Barney St" },
     { id: "de2", expense_date: addDays(T, -9), category: "supplies", amount: 47.9, note: "Squeegee rubbers + soap" },
     { id: "de3", expense_date: addDays(T, -21), category: "equipment", amount: 315, note: "Replacement water-fed pole section" },
     { id: "de4", expense_date: addDays(T, -34), category: "insurance", amount: 148.5, note: "Public liability - monthly" },
@@ -73,9 +73,9 @@ function seed() {
   ];
 
   const trips = [
-    { id: "dt1", trip_date: addDays(T, -1), from_label: "5 Smith St, Sydney", to_label: "Priya Raman — 204/9 Harbour Mill, Pyrmont", distance_km: 8.4, round_trip: false, purpose: "Window Cleaning", customer_id: "dc3", created_at: new Date(Date.parse(addDays(T, -1))).toISOString() },
-    { id: "dt2", trip_date: addDays(T, -1), from_label: "Priya Raman — 204/9 Harbour Mill, Pyrmont", to_label: "5 Smith St, Sydney", distance_km: 8.1, round_trip: false, purpose: "Heading home", customer_id: null, created_at: new Date(Date.parse(addDays(T, -1)) + 3600000).toISOString() },
-    { id: "dt3", trip_date: addDays(T, -5), from_label: "5 Smith St, Sydney", to_label: "Riverside Dental — Shop 3/44 Great North Rd, Five Dock", distance_km: 12.2, round_trip: true, purpose: "Window Cleaning", customer_id: "dc7", created_at: new Date(Date.parse(addDays(T, -5))).toISOString() },
+    { id: "dt1", trip_date: addDays(T, -1), from_label: "14 East St, Uralla", to_label: "Priya Raman — 2/9 Beardy St, Armidale", distance_km: 8.4, round_trip: false, purpose: "Window Cleaning", customer_id: "dc3", created_at: new Date(Date.parse(addDays(T, -1))).toISOString() },
+    { id: "dt2", trip_date: addDays(T, -1), from_label: "Priya Raman — 2/9 Beardy St, Armidale", to_label: "14 East St, Uralla", distance_km: 8.1, round_trip: false, purpose: "Heading home", customer_id: null, created_at: new Date(Date.parse(addDays(T, -1)) + 3600000).toISOString() },
+    { id: "dt3", trip_date: addDays(T, -5), from_label: "14 East St, Uralla", to_label: "Riverside Dental — Shop 3/44 Rusden St, Armidale", distance_km: 12.2, round_trip: true, purpose: "Window Cleaning", customer_id: "dc7", created_at: new Date(Date.parse(addDays(T, -5))).toISOString() },
   ];
 
   const customerNotes = [
@@ -86,9 +86,9 @@ function seed() {
 
   const settings = {
     id: true,
-    home_base_address: "5 Smith St, Sydney NSW 2000",
-    home_base_lat: -33.8688,
-    home_base_lng: 151.2093,
+    home_base_address: "14 East St, Uralla NSW 2358",
+    home_base_lat: -30.6405,
+    home_base_lng: 151.5030,
     mileage_rate_cents: 88,
     packing_checklist: ["Squeegees", "Extension pole", "Towels / cloths", "Screwdriver", "Bucket & soap", "Ladder straps"],
     type_checklists: {
