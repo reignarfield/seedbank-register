@@ -24,6 +24,7 @@ import {
 import { Card, Button, EmptyState, TextInput, TextArea, money } from "./ui";
 import { todayStr, addDays, formatDate, formatTime } from "../lib/dates";
 import QuickAddCustomer from "./QuickAddCustomer";
+import { PhotoButton } from "./JobPhotos";
 import { BUSINESS } from "../lib/business";
 import { fetchRainChance } from "../lib/weather";
 import MorningCheck from "./MorningCheck";
@@ -104,7 +105,7 @@ function StartDayCard({ homeBaseAddress, rainChance, onStart }) {
 // and the most recent thing jotted about them. Each comes from exactly one
 // place - job.notes, customer.access_notes, customer_notes - so what's shown
 // here is what's stored there, never a copy that can drift.
-function JobRow({ job, customer, latestNote, overdue, onComplete, onReschedule, order }) {
+function JobRow({ job, customer, latestNote, overdue, onComplete, onReschedule, order, photoCount = 0, onPhotoAdded }) {
   const [paidNow, setPaidNow] = useState(false);
   const priced = job.price != null && Number(job.price) > 0;
 
@@ -136,6 +137,8 @@ function JobRow({ job, customer, latestNote, overdue, onComplete, onReschedule, 
             </div>
           )}
         </div>
+        <div className="flex items-start gap-1.5 shrink-0">
+        <PhotoButton job={job} count={photoCount} onAdded={onPhotoAdded} />
         {order && (
           <div className="flex flex-col shrink-0 border border-slate-200 rounded-lg overflow-hidden">
             <button onClick={order.onUp} disabled={!order.canUp} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:text-slate-400 disabled:hover:bg-transparent">
@@ -147,6 +150,7 @@ function JobRow({ job, customer, latestNote, overdue, onComplete, onReschedule, 
             </button>
           </div>
         )}
+        </div>
       </div>
       <div className="flex items-center gap-2 mt-3">
         {customer?.phone && (
@@ -282,6 +286,8 @@ export default function TodaySimple({
   onTodoDone,
   onQuickAddCustomer,
   pendingOffline = 0,
+  photoCounts = {},
+  onPhotoAdded,
   checklist,
   typeChecklists = {},
   onSaveChecklist,
@@ -437,6 +443,8 @@ export default function TodaySimple({
                   job={j}
                   customer={customerById(j.customer_id)}
                   latestNote={latestNoteFor.get(j.customer_id)}
+                  photoCount={photoCounts[j.id] || 0}
+                  onPhotoAdded={onPhotoAdded}
                   overdue
                   onComplete={(paidNow) => requestComplete(j, paidNow)}
                   onReschedule={() => setReschedulingJob(j)}
@@ -469,6 +477,8 @@ export default function TodaySimple({
                   job={j}
                   customer={customerById(j.customer_id)}
                   latestNote={latestNoteFor.get(j.customer_id)}
+                  photoCount={photoCounts[j.id] || 0}
+                  onPhotoAdded={onPhotoAdded}
                   onComplete={(paidNow) => requestComplete(j, paidNow)}
                   onReschedule={() => setReschedulingJob(j)}
                   order={

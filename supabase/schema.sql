@@ -634,6 +634,34 @@ drop policy if exists "authenticated full access" on public.push_subscriptions;
 create policy "authenticated full access" on public.push_subscriptions
   for all to authenticated using (true) with check (true);
 
+-- ---------------------------------------------------------------------------
+-- Bank details and job photos (migration 0016)
+-- ---------------------------------------------------------------------------
+alter table public.settings add column if not exists bank_account_name text;
+alter table public.settings add column if not exists bank_bsb text;
+alter table public.settings add column if not exists bank_account_number text;
+alter table public.settings add column if not exists payment_note text;
+
+create table if not exists public.job_photos (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.jobs(id) on delete restrict,
+  customer_id uuid references public.customers(id) on delete set null,
+  path text not null,
+  note text,
+  taken_at timestamptz not null default now(),
+  archived_at timestamptz
+);
+create index if not exists job_photos_job_idx on public.job_photos(job_id);
+alter table public.job_photos enable row level security;
+drop policy if exists "authenticated full access" on public.job_photos;
+create policy "authenticated full access" on public.job_photos
+  for all to authenticated using (true) with check (true);
+
+insert into storage.buckets (id, name, public) values ('photos', 'photos', false) on conflict (id) do nothing;
+drop policy if exists "authenticated photos" on storage.objects;
+create policy "authenticated photos" on storage.objects
+  for all to authenticated using (bucket_id = 'photos') with check (bucket_id = 'photos');
+
 -- ===========================================================================
 -- Done. Next: Authentication -> Users -> Add user (tick auto-confirm) to
 -- create the login you'll use at /team.

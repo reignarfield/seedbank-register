@@ -25,6 +25,10 @@ export function invoiceHtml({ invoice, customer, settings }) {
   const title = gst ? "TAX INVOICE" : "INVOICE";
   const abn = settings?.abn || "";
   const paid = invoice.status === "paid";
+  const bank = settings?.bank_bsb && settings?.bank_account_number
+    ? `Bank transfer to <b>${settings.bank_account_name || BUSINESS.name}</b> · BSB <b>${settings.bank_bsb}</b> · Account <b>${settings.bank_account_number}</b> · Reference <b>${short(invoice.id)}</b>`
+    : `Bank transfer or cash - please quote invoice no. ${short(invoice.id)} as the reference`;
+  const note = settings?.payment_note ? ` ${settings.payment_note}` : "";
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${title} ${short(invoice.id)}</title>
 <style>
@@ -72,7 +76,7 @@ export function invoiceHtml({ invoice, customer, settings }) {
     ${!gst ? `<div class="muted" style="font-size:12px">No GST has been charged.</div>` : ""}
   </div>
   <div class="terms">
-    ${paid ? "Thank you - this invoice has been paid." : `Please pay by ${formatDateLong(invoice.due_date)}. Bank transfer or cash accepted - quote invoice no. ${short(invoice.id)} as the reference.`}
+    ${paid ? "Thank you - this invoice has been paid." : `Please pay by ${formatDateLong(invoice.due_date)}.<br/>${bank}.${note}`}
   </div>
 </body></html>`;
 }
@@ -132,6 +136,11 @@ export default function InvoiceView({ invoice, customer, settings, onClose, onEm
             <div className="flex justify-between font-semibold text-slate-900 border-t border-slate-200 mt-2 pt-2"><span>Total{gst ? " (inc GST)" : ""}</span><span className="tabular-nums">{money(amount)}</span></div>
             {!gst && <div className="text-xs text-slate-400 mt-1">No GST charged - not registered.</div>}
           </div>
+          {settings?.bank_bsb && settings?.bank_account_number ? (
+            <div className="text-xs text-slate-600 border-t border-slate-100 pt-3">Pay by transfer: <b>{settings.bank_account_name || BUSINESS.name}</b> · BSB {settings.bank_bsb} · Acc {settings.bank_account_number} · Ref <b>{short(invoice.id)}</b></div>
+          ) : (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">No bank details set - the customer can't pay from this. Settings → Getting paid.</p>
+          )}
           {!settings?.abn && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">No ABN set - an invoice needs one. Add it in Settings.</p>}
           {sent && !composing && (
             <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 flex items-center gap-1.5"><Check size={13} /> Emailed{invoice.sent_to ? ` to ${invoice.sent_to}` : ""}{invoice.sent_at ? ` on ${formatDateLong(invoice.sent_at.slice(0, 10))}` : ""}.</p>

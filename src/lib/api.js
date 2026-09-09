@@ -96,6 +96,10 @@ export const logActivity = (...a) => impl().logActivity(...a);
 export const undoActivity = (...a) => impl().undoActivity(...a);
 
 export const uploadReceipt = (...a) => impl().uploadReceipt(...a);
+export const uploadJobPhoto = (...a) => impl().uploadJobPhoto(...a);
+export const fetchJobPhotos = (...a) => impl().fetchJobPhotos(...a);
+export const fetchPhotoCounts = (...a) => impl().fetchPhotoCounts(...a);
+export const photoUrl = (...a) => impl().photoUrl(...a);
 export const receiptUrl = (...a) => impl().receiptUrl(...a);
 
 export { resetDemoData } from "./demoApi";

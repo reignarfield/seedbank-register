@@ -45,6 +45,7 @@ import {
   undoActivity,
   fetchTodoState,
   setTodoState,
+  fetchPhotoCounts,
   sendEmail,
   markInvoiceSent,
 } from "./lib/api";
@@ -162,6 +163,7 @@ export default function App() {
   const [customerNotes, setCustomerNotes] = useState([]);
   const [activity, setActivity] = useState([]);
   const [todoState, setTodoStateLocal] = useState({});
+  const [photoCounts, setPhotoCounts] = useState({});
   const [settings, setSettings] = useState({
     home_base_address: null,
     home_base_lat: null,
@@ -205,6 +207,7 @@ export default function App() {
     customerNotes: [fetchCustomerNotes, setCustomerNotes],
     activity: [fetchActivity, setActivity],
     todoState: [fetchTodoState, setTodoStateLocal],
+    photoCounts: [fetchPhotoCounts, setPhotoCounts],
   };
 
   const reload = async (only) => {
@@ -731,6 +734,8 @@ export default function App() {
           onTodoDone={doneTodo}
           onQuickAddCustomer={quickAddCustomer}
           pendingOffline={pendingOffline}
+          photoCounts={photoCounts}
+          onPhotoAdded={() => reload(["photoCounts"])}
           checklist={settings.packing_checklist || []}
           typeChecklists={settings.type_checklists || {}}
           onSaveChecklist={(items) => saveMileageSettings({ packing_checklist: items })}

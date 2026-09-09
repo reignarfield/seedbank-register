@@ -138,6 +138,10 @@ export default function Settings({
     (d) => onSave({ public_tagline: d.public_tagline.trim() || null, service_area: d.service_area.trim() || null, public_blurb: d.public_blurb.trim() || null, google_review_url: d.google_review_url.trim() || null, review_count: d.review_count === "" ? null : Number(d.review_count) || null, instagram_url: d.instagram_url.trim() || null, facebook_url: d.facebook_url.trim() || null })
   );
   const business = useDraft({ abn: settings.abn || "", gst_registered: !!settings.gst_registered, invoice_due_days: settings.invoice_due_days ?? 14 }, onSave);
+  const bank = useDraft(
+    { bank_account_name: settings.bank_account_name || "", bank_bsb: settings.bank_bsb || "", bank_account_number: settings.bank_account_number || "", payment_note: settings.payment_note || "" },
+    (d) => onSave({ bank_account_name: d.bank_account_name.trim() || null, bank_bsb: d.bank_bsb.trim() || null, bank_account_number: d.bank_account_number.trim() || null, payment_note: d.payment_note.trim() || null })
+  );
   const van = useDraft({ home_base_address: settings.home_base_address || "", mileage_rate_cents: settings.mileage_rate_cents ?? 88 }, async (d) => {
     const coords = d.home_base_address.trim() ? await geocode(d.home_base_address.trim()) : null;
     await onSave({ home_base_address: d.home_base_address.trim() || null, home_base_lat: coords?.lat ?? null, home_base_lng: coords?.lng ?? null, mileage_rate_cents: Number(d.mileage_rate_cents) || 88 });
@@ -181,6 +185,26 @@ export default function Settings({
           />
         </div>
         <SaveRow dirty={business.dirty} saving={business.saving} onSave={() => business.save()} />
+      </Section>
+
+      <Section icon={Building2} title="Getting paid" blurb="Printed on every invoice, with the invoice number as the reference.">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Field label="Account name">
+            <TextInput value={bank.draft.bank_account_name} onChange={(e) => bank.set("bank_account_name", e.target.value)} placeholder="Tydie Cleaning" />
+          </Field>
+          <Field label="BSB">
+            <TextInput inputMode="numeric" value={bank.draft.bank_bsb} onChange={(e) => bank.set("bank_bsb", e.target.value)} placeholder="062-000" />
+          </Field>
+          <Field label="Account number">
+            <TextInput inputMode="numeric" value={bank.draft.bank_account_number} onChange={(e) => bank.set("bank_account_number", e.target.value)} placeholder="1234 5678" />
+          </Field>
+        </div>
+        <div className="mt-3">
+          <Field label="Anything else about paying (optional)">
+            <TextInput value={bank.draft.payment_note} onChange={(e) => bank.set("payment_note", e.target.value)} placeholder="Cash on the day is fine. Card has a 1.8% surcharge." />
+          </Field>
+        </div>
+        <SaveRow dirty={bank.dirty} saving={bank.saving} onSave={() => bank.save()} />
       </Section>
 
       <Section icon={Car} title="Van" blurb="For working out distances and the cents-per-km claim.">

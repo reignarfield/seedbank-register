@@ -4,6 +4,8 @@ import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyStat
 import { formatDate, formatTime, todayStr, addDays, nextDueDate } from "../lib/dates";
 import { customersDue } from "../lib/today";
 import { PRICE_GROUPS } from "../lib/pricing";
+import { PhotoStrip } from "./JobPhotos";
+import MonthView from "./MonthView";
 
 // A quote here (scheduling straight off an accepted quote) pre-fills price
 // and description from what was actually quoted - still fully editable in
@@ -88,6 +90,7 @@ export function JobForm({ initial, customers, onCancel, onSave, saving, onCancel
           <Field label="Notes">
             <TextArea rows={2} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} placeholder="Anything the job needs" />
           </Field>
+          {isEdit && <PhotoStrip job={form} />}
           {isEdit && (onCancelJob || onArchive) && (
             <div className="flex items-center gap-2 pt-1">
               {form.status === "scheduled" && onCancelJob && (
@@ -182,6 +185,8 @@ export default function Schedule({
   onDraftConsumed,
 }) {
   const [filter, setFilter] = useState("upcoming");
+  const [layout, setLayout] = useState("list"); // "list" | "month"
+  const [pickedDay, setPickedDay] = useState(null);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [completingNoPrice, setCompletingNoPrice] = useState(null);
@@ -252,7 +257,8 @@ export default function Schedule({
       <div className="flex items-center justify-between gap-3 mb-4">
         <h1 className="text-2xl font-semibold text-slate-900">Schedule</h1>
         <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
-          {FILTERS.map((f) => (
+          <button onClick={() => setLayout(layout === "list" ? "month" : "list")} className="px-3 py-1.5 rounded-full text-sm font-medium text-slate-500 hover:text-blue-700">{layout === "list" ? "Month" : "List"}</button>
+          {layout === "list" && FILTERS.map((f) => (
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
@@ -264,7 +270,9 @@ export default function Schedule({
         </div>
       </div>
 
-      {groups.length === 0 ? (
+      {layout === "month" ? (
+        <MonthView jobs={jobs} customers={customers} selected={pickedDay} onSelect={setPickedDay} onBook={(d) => setEditing(emptyJob("", d))} />
+      ) : groups.length === 0 ? (
         <EmptyState icon={CalendarDays} title={customers.length === 0 ? "Add a customer first, then book their first job." : "Nothing booked. Tap New job."} />
       ) : (
         <div className="space-y-5">
@@ -310,7 +318,7 @@ export default function Schedule({
         </div>
       )}
 
-      {filter !== "done" && hasNeeds && (
+      {layout === "list" && filter !== "done" && hasNeeds && (
         <div className="mt-8">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 mb-2 px-1">Needs booking</div>
           <div className="space-y-2">

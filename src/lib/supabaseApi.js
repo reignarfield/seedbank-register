@@ -412,6 +412,37 @@ export async function removePushSubscription(endpoint) {
 }
 
 // ---------------------------------------------------------------------------
+// Photos on a job - private bucket, signed URLs, same shape as receipts.
+// ---------------------------------------------------------------------------
+export async function uploadJobPhoto(job, file) {
+  const ext = (file.name?.split(".").pop() || "jpg").toLowerCase();
+  const path = `jobs/${job.id}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from("photos").upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+  if (error) throw error;
+  const { data, error: e2 } = await supabase.from("job_photos").insert({ job_id: job.id, customer_id: job.customer_id, path }).select().single();
+  if (e2) throw e2;
+  return data;
+}
+export async function fetchJobPhotos(jobId) {
+  const { data, error } = await supabase.from("job_photos").select("*").eq("job_id", jobId).is("archived_at", null).order("taken_at", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+export async function fetchPhotoCounts() {
+  const { data, error } = await supabase.from("job_photos").select("job_id").is("archived_at", null);
+  if (error) throw error;
+  const m = {};
+  for (const r of data || []) m[r.job_id] = (m[r.job_id] || 0) + 1;
+  return m;
+}
+export async function photoUrl(path) {
+  if (!path) return null;
+  const { data, error } = await supabase.storage.from("photos").createSignedUrl(path, 60 * 60);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+// ---------------------------------------------------------------------------
 // Usage tracking + feedback. Always the real database, demo mode or not.
 // ---------------------------------------------------------------------------
 export async function insertUsageEvents(rows) {

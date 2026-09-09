@@ -400,3 +400,21 @@ export const setTodoState = async (key, { snoozed_until = null, dismissed_at = n
 export const markInvoiceSent = async (id, to) => {
   db.invoices = db.invoices.map((i) => (i.id === id ? { ...i, sent_at: new Date().toISOString(), sent_to: to } : i));
 };
+
+// ---- Photos (object URLs for the life of the page) ----
+const photoStore = new Map();
+let jobPhotos = [];
+export const uploadJobPhoto = async (job, file) => {
+  const path = `demo/${uid("p")}`;
+  photoStore.set(path, URL.createObjectURL(file));
+  const row = { id: uid("jp"), job_id: job.id, customer_id: job.customer_id, path, note: null, taken_at: new Date().toISOString(), archived_at: null };
+  jobPhotos = [...jobPhotos, row];
+  return row;
+};
+export const fetchJobPhotos = async (jobId) => jobPhotos.filter((p) => p.job_id === jobId);
+export const fetchPhotoCounts = async () => {
+  const m = {};
+  for (const p of jobPhotos) m[p.job_id] = (m[p.job_id] || 0) + 1;
+  return m;
+};
+export const photoUrl = async (path) => (path ? photoStore.get(path) || null : null);
