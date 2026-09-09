@@ -7,7 +7,7 @@
 // Archived rows are excluded everywhere. Archiving is how records leave the
 // screen without leaving the books.
 
-import { todayStr, addDays, daysBetween, dueStatus } from "./dates";
+import { todayStr, addDays, addWeeks, daysBetween, dueStatus } from "./dates";
 
 const live = (row) => !row.archived_at;
 const open = (job) => live(job) && job.status === "scheduled";
@@ -73,11 +73,39 @@ export function customersDue(customers, dueSoonDays = 7) {
     .sort((a, b) => (a.status === b.status ? 0 : a.status === "overdue" ? -1 : 1));
 }
 
-// One-off customers the due-date system never resurfaces, not seen in a
-// while - worth a call. `lapsedDays` is Tyson's setting.
-export function customersLapsed(customers, lapsedDays = 180, today = todayStr()) {
+// Each regular service a customer has, with when it's next due. This is the
+// per-service shape that "who's due" is built from now: windows every 8
+// weeks and solar once a year are two rows, two dates, two reminders.
+export function servicesDue(customers, services = [], dueSoonDays = 7, today = todayStr()) {
+  const byId = new Map(customers.filter((c) => live(c) && c.status === "active").map((c) => [c.id, c]));
+  const out = [];
+  for (const s of services) {
+    if (s.archived_at || !s.last_done || !s.frequency_weeks) continue;
+    const customer = byId.get(s.customer_id);
+    if (!customer) continue;
+    const due = addWeeks(s.last_done, s.frequency_weeks);
+    const diff = daysBetween(today, due);
+    const status = diff < 0 ? "overdue" : diff <= dueSoonDays ? "due_soon" : "scheduled";
+    if (status === "scheduled") continue;
+    out.push({ customer, service: s, due, status, diff });
+  }
+  return out.sort((a, b) => (a.status === b.status ? a.diff - b.diff : a.status === "overdue" ? -1 : 1));
+}
+
+// Every service (due or not) with its next date - for the customer list.
+export function nextServiceDates(services = [], customerId) {
+  return services
+    .filter((s) => s.customer_id === customerId && !s.archived_at)
+    .map((s) => ({ ...s, due: s.last_done ? addWeeks(s.last_done, s.frequency_weeks) : null }))
+    .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+}
+
+// One-off customers - no regular service on the books - not seen in a
+// while: worth a call. `lapsedDays` is Tyson's setting.
+export function customersLapsed(customers, lapsedDays = 180, today = todayStr(), services = []) {
+  const regular = new Set(services.filter((s) => !s.archived_at).map((s) => s.customer_id));
   return customers
-    .filter((c) => live(c) && c.status === "active" && !c.frequency_weeks && c.last_service_date && daysBetween(c.last_service_date, today) >= lapsedDays)
+    .filter((c) => live(c) && c.status === "active" && !regular.has(c.id) && c.last_service_date && daysBetween(c.last_service_date, today) >= lapsedDays)
     .sort((a, b) => a.last_service_date.localeCompare(b.last_service_date));
 }
 

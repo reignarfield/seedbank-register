@@ -412,6 +412,24 @@ export async function removePushSubscription(endpoint) {
 }
 
 // ---------------------------------------------------------------------------
+// Regular services per customer
+// ---------------------------------------------------------------------------
+export async function fetchCustomerServices() {
+  const { data, error } = await supabase.from("customer_services").select("*").is("archived_at", null).order("created_at", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+export async function upsertCustomerService(s) {
+  const { data, error } = await supabase.from("customer_services").upsert(s, { onConflict: "id" }).select().single();
+  if (error) throw error;
+  return data;
+}
+export async function archiveCustomerService(id) {
+  const { error } = await supabase.from("customer_services").update({ archived_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
 // Photos on a job - private bucket, signed URLs, same shape as receipts.
 // ---------------------------------------------------------------------------
 export async function uploadJobPhoto(job, file) {

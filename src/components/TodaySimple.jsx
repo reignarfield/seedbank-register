@@ -278,6 +278,7 @@ export default function TodaySimple({
   onUndoActivity,
   quotes = [],
   renewals = [],
+  services = [],
   settings = {},
   todoState = {},
   onTodoAction,
@@ -355,8 +356,8 @@ export default function TodaySimple({
   // Everything that isn't a job in the van but still needs him, with one
   // action each. Built fresh from live data; see lib/todo.js for the order.
   const todos = useMemo(
-    () => buildTodos({ customers, jobs, invoices, quotes, leads, renewals, settings, state: todoState, today }),
-    [customers, jobs, invoices, quotes, leads, renewals, settings, todoState, today]
+    () => buildTodos({ customers, jobs, invoices, quotes, leads, renewals, services, settings, state: todoState, today }),
+    [customers, jobs, invoices, quotes, leads, renewals, services, settings, todoState, today]
   );
 
   const priorityIds = useMemo(() => new Set([...overdueJobs, ...todaysJobs].map((j) => j.customer_id)), [overdueJobs, todaysJobs]);

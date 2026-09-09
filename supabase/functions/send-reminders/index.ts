@@ -124,14 +124,17 @@ Deno.serve(async () => {
     const RENEWAL_LEAD_DAYS = settingsRow?.renewal_lead_days ?? DEFAULT_RENEWAL_LEAD_DAYS;
 
     // ---- 1. Customers due for their next clean ----
-    const { data: customers, error: custError } = await supabase
-      .from("customers")
-      .select("id, name, email, frequency_weeks, last_service_date, status")
-      .eq("status", "active")
+    // Due-ness is per regular service now (customer_services), not per customer.
+    const { data: serviceRows, error: custError } = await supabase
+      .from("customer_services")
+      .select("id, service, frequency_weeks, last_done, customers!inner(id, name, email, status, archived_at)")
       .is("archived_at", null)
-      .not("frequency_weeks", "is", null)
-      .not("last_service_date", "is", null);
+      .not("last_done", "is", null);
     if (custError) throw custError;
+    const customers = (serviceRows || [])
+      .map((s) => ({ cust: Array.isArray(s.customers) ? s.customers[0] : s.customers, s }))
+      .filter(({ cust }) => cust && cust.status === "active" && !cust.archived_at)
+      .map(({ cust, s }) => ({ id: cust.id, name: cust.name, email: cust.email, frequency_weeks: s.frequency_weeks, last_service_date: s.last_done, service: s.service, serviceId: s.id }));
 
     const dueSoonList: { name: string; nextDue: string }[] = [];
 
@@ -140,7 +143,7 @@ Deno.serve(async () => {
       const daysUntil = daysBetween(today, nextDue);
       if (daysUntil > DUE_SOON_LEAD_DAYS) continue; // not due soon yet
 
-      dueSoonList.push({ name: c.name, nextDue });
+      dueSoonList.push({ name: `${c.name} - ${c.service.toLowerCase()}`, nextDue });
       if (!on.due_soon) continue; // counted for the digest, not emailed
 
       if (!c.email) continue; // nothing to send, but still counted in the owner digest

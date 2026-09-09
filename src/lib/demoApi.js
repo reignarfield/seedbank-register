@@ -106,12 +106,23 @@ function seed() {
   };
 
   // What the app did recently, so the feed has something to show.
+  // Regular services - the same house can be on two cycles.
+  const customerServices = [
+    { id: "ds1", customer_id: "dc1", service: "Window Cleaning", frequency_weeks: 8, last_done: addDays(T, -56), price: 250, archived_at: null },
+    { id: "ds2", customer_id: "dc2", service: "Pressure Cleaning", frequency_weeks: 12, last_done: addDays(T, -88), price: 300, archived_at: null },
+    { id: "ds3", customer_id: "dc3", service: "Window Cleaning", frequency_weeks: 6, last_done: addDays(T, -5), price: 70, archived_at: null },
+    { id: "ds4", customer_id: "dc6", service: "Window Cleaning", frequency_weeks: 26, last_done: addDays(T, -170), price: 300, archived_at: null },
+    { id: "ds5", customer_id: "dc6", service: "Solar Panel Cleaning", frequency_weeks: 52, last_done: addDays(T, -370), price: 150, archived_at: null },
+    { id: "ds6", customer_id: "dc7", service: "Window Cleaning", frequency_weeks: 4, last_done: addDays(T, -30), price: 180, archived_at: null },
+    { id: "ds7", customer_id: "dc8", service: "Window Cleaning", frequency_weeks: 8, last_done: addDays(T, -120), price: 250, archived_at: null },
+  ];
+
   const activity = [
     { id: "da1", occurred_at: new Date(Date.now() - 3600000 * 26).toISOString(), kind: "job_completed", summary: "Marked Priya Raman done and raised a $70.00 invoice, due in 14 days", actor: "app", customer_id: "dc3", ref_table: "jobs", ref_id: "dj7", undo: { invoice_id: "di2", prev_last_service_date: null, prev_status: "scheduled" }, undone_at: null },
     { id: "da2", occurred_at: new Date(Date.now() - 3600000 * 25).toISOString(), kind: "trip_logged", summary: "Logged 8.4 km to Priya Raman", actor: "app", customer_id: "dc3", ref_table: "trips", ref_id: "dt1", undo: null, undone_at: null },
   ];
 
-  return { customers, jobs, quotes, invoices, leads, expenses, renewals, trips, customerNotes, settings, activity };
+  return { customers, jobs, quotes, invoices, leads, expenses, renewals, trips, customerNotes, settings, activity, customerServices };
 }
 
 let db = seed();
@@ -165,6 +176,7 @@ export const completeJob = async (job, { paidNow, dueDays } = {}) => {
   );
   const updated = db.jobs.find((x) => x.id === job.id);
   db.customers = db.customers.map((c) => (c.id === job.customer_id ? { ...c, last_service_date: job.scheduled_date } : c));
+  if (job.job_type) db.customerServices = db.customerServices.map((s) => (s.customer_id === job.customer_id && s.service === job.job_type ? { ...s, last_done: job.scheduled_date } : s));
   if (price != null) {
     invoiceId = uid("di");
     db.invoices = [
@@ -418,3 +430,18 @@ export const fetchPhotoCounts = async () => {
   return m;
 };
 export const photoUrl = async (path) => (path ? photoStore.get(path) || null : null);
+
+// ---- Regular services ----
+export const fetchCustomerServices = async () => db.customerServices.filter((s) => !s.archived_at);
+export const upsertCustomerService = async (s) => {
+  if (s.id) {
+    db.customerServices = db.customerServices.map((x) => (x.id === s.id ? { ...x, ...s } : x));
+    return db.customerServices.find((x) => x.id === s.id);
+  }
+  const created = { ...s, id: uid("ds"), archived_at: null };
+  db.customerServices = [...db.customerServices, created];
+  return created;
+};
+export const archiveCustomerService = async (id) => {
+  db.customerServices = db.customerServices.map((x) => (x.id === id ? { ...x, archived_at: new Date().toISOString() } : x));
+};

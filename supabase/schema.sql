@@ -326,6 +326,37 @@ create policy "public can submit a lead" on public.leads
   for insert to anon with check (true);
 
 -- ---------------------------------------------------------------------------
+-- Regular services per customer (migration 0017)
+-- ---------------------------------------------------------------------------
+create table if not exists public.customer_services (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete restrict,
+  service text not null,                      -- a price-list category, e.g. 'Window Cleaning'
+  frequency_weeks integer not null check (frequency_weeks > 0),
+  last_done date,
+  price numeric(10, 2),                       -- the usual price for this one
+  notes text,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists customer_services_customer_idx on public.customer_services(customer_id);
+alter table public.customer_services enable row level security;
+drop policy if exists "authenticated full access" on public.customer_services;
+create policy "authenticated full access" on public.customer_services
+  for all to authenticated using (true) with check (true);
+drop trigger if exists customer_services_set_updated_at on public.customer_services;
+create trigger customer_services_set_updated_at before update on public.customer_services
+  for each row execute function public.set_updated_at();
+
+insert into public.customer_services (customer_id, service, frequency_weeks, last_done)
+select id, 'General', frequency_weeks, last_service_date from public.customers
+where frequency_weeks is not null and archived_at is null
+  and not exists (select 1 from public.customer_services s where s.customer_id = customers.id);
+
+update public.settings set reminders = '{"owner_digest": false, "due_soon": false, "invoice_overdue": false, "job_confirmation": false, "review_request": false}'::jsonb where id = true;
+
+-- ---------------------------------------------------------------------------
 -- Archive-not-delete, Tyson's settings, the activity log, receipt photos,
 -- and the atomic complete_job / undo_activity functions (migration 0011).
 -- ---------------------------------------------------------------------------
@@ -450,6 +481,12 @@ begin
   update public.customers
      set last_service_date = v_job.scheduled_date
    where id = v_job.customer_id;
+
+  -- The matching regular service moves forward too (see customer_services).
+  if v_job.job_type is not null then
+    update public.customer_services set last_done = v_job.scheduled_date
+     where customer_id = v_job.customer_id and service = v_job.job_type and archived_at is null;
+  end if;
 
   if v_price is not null then
     insert into public.invoices

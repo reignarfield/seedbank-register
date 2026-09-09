@@ -149,7 +149,6 @@ export default function Settings({
   const people = useDraft({ due_soon_days: settings.due_soon_days ?? 7, lapsed_days: settings.lapsed_days ?? 180, renewal_lead_days: settings.renewal_lead_days ?? 30 }, (d) =>
     onSave({ due_soon_days: Number(d.due_soon_days) || 7, lapsed_days: Number(d.lapsed_days) || 180, renewal_lead_days: Number(d.renewal_lead_days) || 30 })
   );
-  const reminders = useDraft({ ...(settings.reminders || {}) }, (d) => onSave({ reminders: d }));
 
   const [editingList, setEditingList] = useState(null); // "everyday" | a PRICE_GROUPS title
   const [showTaxPack, setShowTaxPack] = useState(false);
@@ -259,108 +258,9 @@ export default function Settings({
         </div>
       </Section>
 
-      <Section icon={Bell} title="Automatic emails" blurb="Each one is off until you've seen what it says and want it sent for you. Emails only go out once the reminder function is deployed.">
-        <Toggle label="Daily digest to you" hint="New leads, who's due, overdue invoices, upcoming renewals." checked={reminders.draft.owner_digest} onChange={(v) => reminders.set("owner_digest", v)} />
-        <Toggle label="'You're due for a clean' to customers" checked={reminders.draft.due_soon} onChange={(v) => reminders.set("due_soon", v)} />
-        <Toggle label="'See you tomorrow' confirmations" checked={reminders.draft.job_confirmation} onChange={(v) => reminders.set("job_confirmation", v)} />
-        <Toggle label="Overdue invoice reminders" hint="Never to an invoice that's been marked paid." checked={reminders.draft.invoice_overdue} onChange={(v) => reminders.set("invoice_overdue", v)} />
-        <Toggle label="Review requests the day after a job" checked={reminders.draft.review_request} onChange={(v) => reminders.set("review_request", v)} />
-        <SaveRow dirty={reminders.dirty} saving={reminders.saving} onSave={() => reminders.save()} />
-      </Section>
-
-      <Section icon={Megaphone} title="Public page" blurb="The words on the booking page. Yours, not the app's.">
-        <div className="space-y-3">
-          <Field label="One line under the logo - what you do">
-            <TextInput value={pub.draft.public_tagline} onChange={(e) => pub.set("public_tagline", e.target.value)} placeholder="Window, pressure and solar panel cleaning" />
-          </Field>
-          <Field label="Where you work">
-            <TextInput value={pub.draft.service_area} onChange={(e) => pub.set("service_area", e.target.value)} placeholder="Northern Beaches and the North Shore" />
-          </Field>
-          <Field label="A short paragraph about you (optional)">
-            <TextInput value={pub.draft.public_blurb} onChange={(e) => pub.set("public_blurb", e.target.value)} placeholder="Owner-operated, fully insured, been doing this since 2019." />
-          </Field>
-          <Field label="Google reviews link (optional)">
-            <TextInput value={pub.draft.google_review_url} onChange={(e) => pub.set("google_review_url", e.target.value)} placeholder="https://g.page/r/..." />
-          </Field>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label="How many 5-star reviews">
-              <TextInput type="number" inputMode="numeric" value={pub.draft.review_count} onChange={(e) => pub.set("review_count", e.target.value)} placeholder="105" />
-            </Field>
-            <Field label="Instagram">
-              <TextInput value={pub.draft.instagram_url} onChange={(e) => pub.set("instagram_url", e.target.value)} placeholder="https://instagram.com/..." />
-            </Field>
-            <Field label="Facebook">
-              <TextInput value={pub.draft.facebook_url} onChange={(e) => pub.set("facebook_url", e.target.value)} placeholder="https://facebook.com/..." />
-            </Field>
-          </div>
-          <p className="text-xs text-slate-400">Reviews are the strongest thing a new customer looks for. Google Business Profile → Ask for reviews → copy the link. Update the count now and then - it's shown on the page.</p>
-        </div>
-        <SaveRow dirty={pub.dirty} saving={pub.saving} onSave={() => pub.save()} />
-      </Section>
-
-      <Section icon={Fingerprint} title="Signing in" blurb="A passkey lets this phone sign you in with Face ID, a fingerprint or its PIN - no password to remember.">
-        {!canPasskey ? (
-          <p className="text-sm text-slate-500">This browser can't do passkeys. Sign in with your password.</p>
-        ) : (
-          <>
-            <div className="divide-y divide-slate-100">
-              {passkeys === null && <p className="text-sm text-slate-400 py-2">Checking…</p>}
-              {passkeys?.length === 0 && <p className="text-sm text-slate-500 py-2">No passkeys yet.</p>}
-              {(passkeys || []).map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0"><div className="text-sm text-slate-800 flex items-center gap-1.5"><Smartphone size={13} className="text-slate-400" /> {p.friendly_name || p.friendlyName || "A device"}</div><div className="text-xs text-slate-400">{p.created_at ? `added ${formatDate(String(p.created_at).slice(0, 10))}` : ""}</div></div>
-                  <button onClick={async () => { if (!confirm("Remove this passkey? That device will need the password again.")) return; await deletePasskey(p.id).catch(() => {}); setPasskeys(await listPasskeys().catch(() => [])); }} className="text-xs text-slate-500 hover:text-rose-700 shrink-0">Remove</button>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 mt-3">
-              <Button className="!px-4 !py-2 !text-xs" onClick={addPasskey} disabled={passkeyBusy}>{passkeyBusy ? <Loader2 size={13} className="animate-spin" /> : <Fingerprint size={13} />} Add this phone</Button>
-              {passkeyMsg && <span className="text-xs text-slate-600">{passkeyMsg}</span>}
-            </div>
-          </>
-        )}
-      </Section>
-
-      <Section icon={Bell} title="Notifications on this phone" blurb="A buzz when something needs you - overdue money, a new enquiry. Not switched on for anyone yet; this just readies the phone.">
-        {!canPush ? (
-          <p className="text-sm text-slate-500">Not set up for this build yet. Nothing to do here for now.</p>
-        ) : (
-          <>
-            <Toggle label="Allow notifications on this phone" hint={pushOn ? "This phone will get them once sending is switched on." : "You'll be asked to allow notifications."} checked={pushOn} onChange={togglePush} />
-            {pushBusy && <p className="text-xs text-slate-400">Working…</p>}
-            {pushMsg && <p className="text-xs text-rose-600">{pushMsg}</p>}
-          </>
-        )}
-      </Section>
-
-      <Section icon={ShieldAlert} title="Renewals" blurb="Insurance, licences, rego - anything with a date it mustn't slip past. They show on Today as they come up.">
-        <div className="divide-y divide-slate-100">
-          {renewals.length === 0 && !newRenewal && <p className="text-sm text-slate-400 py-2">Nothing here yet.</p>}
-          {[...renewals].sort((a, b) => a.due_date.localeCompare(b.due_date)).map((r) => {
-            const overdue = r.due_date < todayStr();
-            return (
-              <div key={r.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="text-sm text-slate-800 truncate">{r.name}</div>
-                  <div className={`text-xs ${overdue ? "text-rose-600" : "text-slate-400"}`}>{overdue ? "Was due" : "Due"} {formatDate(r.due_date)}</div>
-                </div>
-                <button onClick={() => onDeleteRenewal(r.id)} className="text-xs font-medium text-slate-500 hover:text-blue-700 shrink-0">Done</button>
-              </div>
-            );
-          })}
-        </div>
-        {newRenewal ? (
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 mt-3 items-end">
-            <Field label="What"><TextInput value={newRenewal.name} onChange={(e) => setNewRenewal({ ...newRenewal, name: e.target.value })} placeholder="Public liability insurance" autoFocus /></Field>
-            <Field label="Due"><TextInput type="date" value={newRenewal.due_date} onChange={(e) => setNewRenewal({ ...newRenewal, due_date: e.target.value })} /></Field>
-            <div className="flex gap-2">
-              <Button variant="secondary" className="!px-3 !py-2 !text-xs" onClick={() => setNewRenewal(null)}>Cancel</Button>
-              <Button className="!px-3 !py-2 !text-xs" disabled={!newRenewal.name.trim() || !newRenewal.due_date} onClick={async () => { await onSaveRenewal({ name: newRenewal.name.trim(), due_date: newRenewal.due_date }); setNewRenewal(null); }}>Add</Button>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => setNewRenewal({ name: "", due_date: "" })} className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline mt-2"><Plus size={12} /> Add a renewal</button>
-        )}
+      <Section icon={Bell} title="Emails and texts" blurb="Nothing is sent on its own.">
+        <p className="text-sm text-slate-700">Every message the app wants to send - a reminder, a confirmation, a chase, an invoice - shows up on Today under <b>Needs you</b>. You see exactly what it says, change it if you like, and tap Send. If you don't, it doesn't go.</p>
+        <p className="text-xs text-slate-500 mt-2">This can be loosened later, one kind of message at a time, once you've seen enough of them to trust it.</p>
       </Section>
 
       <Section icon={Download} title="Tax pack" blurb="Everything the accountant needs for a financial year, as spreadsheets. Records only - not a tax calculation.">

@@ -45,6 +45,9 @@ import {
   undoActivity,
   fetchTodoState,
   setTodoState,
+  fetchCustomerServices,
+  upsertCustomerService,
+  archiveCustomerService,
   fetchPhotoCounts,
   sendEmail,
   markInvoiceSent,
@@ -58,6 +61,7 @@ import Dev from "./components/Dev";
 import Settings from "./components/Settings";
 import UsageTimeline from "./components/UsageTimeline";
 import FeedbackButton from "./components/FeedbackButton";
+import EmailPreview from "./components/EmailPreview";
 import { startSession, trackScreen, attachTapListener, flush as flushTracking, setTrackedUser } from "./lib/track";
 import { snoozeUntil } from "./lib/todo";
 import { enqueue, drain, attachDrain, onQueueChange, pending, isNetworkFailure } from "./lib/offline";
@@ -164,6 +168,9 @@ export default function App() {
   const [activity, setActivity] = useState([]);
   const [todoState, setTodoStateLocal] = useState({});
   const [photoCounts, setPhotoCounts] = useState({});
+  const [services, setServices] = useState([]);
+  const [emailDraft, setEmailDraft] = useState(null); // { item, draft, smsHref }
+  const [scheduleDraftService, setScheduleDraftService] = useState(null);
   const [settings, setSettings] = useState({
     home_base_address: null,
     home_base_lat: null,
@@ -208,6 +215,7 @@ export default function App() {
     activity: [fetchActivity, setActivity],
     todoState: [fetchTodoState, setTodoStateLocal],
     photoCounts: [fetchPhotoCounts, setPhotoCounts],
+    services: [fetchCustomerServices, setServices],
   };
 
   const reload = async (only) => {
@@ -423,7 +431,13 @@ export default function App() {
   const todoAction = async (item, action) => {
     switch (action.action) {
       case "schedule":
-        scheduleForCustomer(item.customer);
+        scheduleForCustomer(item.customer, null, item.service || null);
+        break;
+      case "email":
+        if (item.primary?.action === "email" || action.action === "email") {
+          const sms = item.customer?.phone ? (action.href || null) : null;
+          setEmailDraft({ item, action, draft: action.draft, smsHref: sms });
+        }
         break;
       case "scheduleQuote":
         scheduleForCustomer(item.customer, item.ref);
@@ -612,10 +626,22 @@ export default function App() {
   // A quote passed in here (accepting a quote) pre-fills the resulting
   // job's price/description straight from what was actually quoted, so
   // there's nothing to remember or re-enter before the invoice raises.
-  const scheduleForCustomer = (customer, quote) => {
+  const scheduleForCustomer = (customer, quote, service) => {
     setScheduleDraftCustomer(customer);
     setScheduleDraftQuote(quote || null);
+    setScheduleDraftService(service || null);
     setView("schedule");
+  };
+
+  // Regular services on a customer
+  const saveService = async (s) => {
+    await upsertCustomerService(s);
+    await reload(["services"]);
+  };
+  const removeService = async (s) => {
+    if (!confirm(`Stop the regular ${s.service.toLowerCase()} for this customer? Past jobs are kept.`)) return;
+    await archiveCustomerService(s.id);
+    await reload(["services"]);
   };
 
   // An accepted quote that came straight from a lead (no customer_id) has no
@@ -732,6 +758,7 @@ export default function App() {
           onTodoSnooze={snoozeTodo}
           onTodoDismiss={dismissTodo}
           onTodoDone={doneTodo}
+          services={services}
           onQuickAddCustomer={quickAddCustomer}
           pendingOffline={pendingOffline}
           photoCounts={photoCounts}
@@ -762,6 +789,7 @@ export default function App() {
           customers={liveCustomers}
           jobs={liveJobs}
           quotes={liveQuotes}
+          services={services}
           settings={settings}
           onSave={saveJob}
           onComplete={completeJobAndReload}
@@ -771,9 +799,11 @@ export default function App() {
           onConvertAndSchedule={convertQuoteToCustomerAndSchedule}
           draftCustomer={scheduleDraftCustomer}
           draftQuote={scheduleDraftQuote}
+          draftService={scheduleDraftService}
           onDraftConsumed={() => {
             setScheduleDraftCustomer(null);
             setScheduleDraftQuote(null);
+            setScheduleDraftService(null);
           }}
         />
       )}
@@ -791,6 +821,9 @@ export default function App() {
           onDelete={removeCustomer}
           draft={customerDraft}
           onDraftConsumed={() => setCustomerDraft(null)}
+          services={services}
+          onSaveService={saveService}
+          onRemoveService={removeService}
           leads={leads}
           onSetLeadStatus={setLeadStatus}
           onDeleteLead={removeLead}
@@ -871,6 +904,17 @@ export default function App() {
         </>
       )}
 
+      {emailDraft && (
+        <EmailPreview
+          draft={emailDraft.draft}
+          smsHref={emailDraft.smsHref}
+          onClose={() => setEmailDraft(null)}
+          onSent={async () => {
+            await doneTodo(emailDraft.item, emailDraft.action);
+            setToast({ message: "Sent." });
+          }}
+        />
+      )}
       <FeedbackButton />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

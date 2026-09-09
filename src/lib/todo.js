@@ -9,7 +9,7 @@
 
 import { todayStr, addDays, daysBetween, formatDate, formatTime, nextDueDate } from "./dates";
 import { BUSINESS, cap } from "./business";
-import { customersDue, customersLapsed, invoicesOverdue, jobsTomorrow, leadsNew, renewalsUpcoming } from "./today";
+import { servicesDue, customersLapsed, invoicesOverdue, jobsTomorrow, leadsNew, renewalsUpcoming } from "./today";
 
 const first = (name) => (name || "").trim().split(" ")[0] || "there";
 const shortId = (id) => String(id || "").replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -27,8 +27,8 @@ export const MESSAGES = {
     `Hi ${first(c.name)}, it's ${BUSINESS.name} - just confirming I'll be round tomorrow${job?.scheduled_time ? ` around ${formatTime(job.scheduled_time)}` : ""} for your ${job?.job_type ? job.job_type.toLowerCase() : BUSINESS.vocab.service}. See you then!`,
   chase: (c, inv) =>
     `Hi ${first(c.name)}, ${BUSINESS.name} here - a friendly reminder that invoice ${shortId(inv.id)} for $${Number(inv.amount).toFixed(2)} was due ${formatDate(inv.due_date)}. Bank transfer or cash is fine. Thanks!`,
-  due: (c) =>
-    `Hi ${first(c.name)}, it's ${BUSINESS.name} - you're about due for your next ${BUSINESS.vocab.service}. Want me to book you in? Just reply with a day that suits.`,
+  due: (c, service) =>
+    `Hi ${first(c.name)}, it's ${BUSINESS.name} - you're about due for your next ${service ? service.toLowerCase() : BUSINESS.vocab.service}. Want me to book you in? Just reply with a day that suits.`,
   reach: (c) =>
     `Hi ${first(c.name)}, ${BUSINESS.name} here - it's been a while since your last ${BUSINESS.vocab.service}. Happy to fit you in if you'd like one - just let me know.`,
   reply: (l) => `Hi ${first(l.name)}, ${BUSINESS.name} here - thanks for getting in touch. When's a good time for a quick chat about what you're after?`,
@@ -36,7 +36,11 @@ export const MESSAGES = {
 
 const ORDER = ["chase", "confirm", "book_overdue", "reply", "invoice", "book_quote", "book_soon", "reach", "renewal"];
 
-export function buildTodos({ customers = [], jobs = [], invoices = [], quotes = [], leads = [], renewals = [], settings = {}, state = {}, today = todayStr() }) {
+// An email the app would send, shown in full before it goes. Body is plain
+// text; the preview turns it into a simple email.
+const emailDraft = (c, subject, body) => (c?.email ? { to: c.email, subject, body } : null);
+
+export function buildTodos({ customers = [], jobs = [], invoices = [], quotes = [], leads = [], renewals = [], services = [], settings = {}, state = {}, today = todayStr() }) {
   const byId = new Map(customers.map((c) => [c.id, c]));
   const items = [];
   const scheduledFor = new Set(jobs.filter((j) => j.status === "scheduled" && !j.archived_at && j.scheduled_date >= today).map((j) => j.customer_id));
@@ -53,8 +57,8 @@ export function buildTodos({ customers = [], jobs = [], invoices = [], quotes = 
       why: `$${Number(inv.amount).toFixed(2)} · ${late} day${late === 1 ? "" : "s"} overdue`,
       customer: c,
       ref: inv,
-      primary: c.phone ? { label: "Text reminder", href: smsLink(c.phone, MESSAGES.chase(c, inv)), logs: `Texted ${c.name} about invoice ${shortId(inv.id)}` } : { label: "View invoice", action: "invoice" },
-      secondary: { label: "Mark paid", action: "markPaid" },
+      primary: c.phone ? { label: "Text reminder", href: smsLink(c.phone, MESSAGES.chase(c, inv)), logs: `Texted ${c.name} about invoice ${shortId(inv.id)}` } : c.email ? { label: "Preview & email", action: "email", draft: emailDraft(c, `Invoice ${shortId(inv.id)} from ${BUSINESS.name}`, MESSAGES.chase(c, inv)), logs: `Emailed ${c.name} about invoice ${shortId(inv.id)}` } : { label: "View invoice", action: "invoice" },
+      secondary: c.phone && c.email ? { label: "Preview & email", action: "email", draft: emailDraft(c, `Invoice ${shortId(inv.id)} from ${BUSINESS.name}`, MESSAGES.chase(c, inv)), logs: `Emailed ${c.name} about invoice ${shortId(inv.id)}` } : { label: "Mark paid", action: "markPaid" },
       sortKey: -late,
     });
   }
@@ -70,24 +74,30 @@ export function buildTodos({ customers = [], jobs = [], invoices = [], quotes = 
       why: [j.scheduled_time ? formatTime(j.scheduled_time) : null, j.job_type, c.address].filter(Boolean).join(" · "),
       customer: c,
       ref: j,
-      primary: c.phone ? { label: "Text", href: smsLink(c.phone, MESSAGES.confirm(c, j)), logs: `Texted ${c.name} to confirm tomorrow` } : { label: "No phone on file", disabled: true },
+      primary: c.phone ? { label: "Text", href: smsLink(c.phone, MESSAGES.confirm(c, j)), logs: `Texted ${c.name} to confirm tomorrow` } : c.email ? { label: "Preview & email", action: "email", draft: emailDraft(c, `See you tomorrow - ${BUSINESS.name}`, MESSAGES.confirm(c, j)), logs: `Emailed ${c.name} to confirm tomorrow` } : { label: "No phone on file", disabled: true },
+      secondary: c.phone && c.email ? { label: "Preview & email", action: "email", draft: emailDraft(c, `See you tomorrow - ${BUSINESS.name}`, MESSAGES.confirm(c, j)), logs: `Emailed ${c.name} to confirm tomorrow` } : null,
       sortKey: 0,
     });
   }
 
-  // Recurring customers due, not yet booked
-  for (const { customer: c, status } of customersDue(customers, settings.due_soon_days ?? 7)) {
-    if (scheduledFor.has(c.id)) continue;
-    const due = nextDueDate(c);
+  // Regular services due, not yet booked - one item per service, so windows
+  // and solar for the same house are two different reminders.
+  const bookedTypes = new Map();
+  for (const j of jobs) if (j.status === "scheduled" && !j.archived_at && j.scheduled_date >= today) bookedTypes.set(`${j.customer_id}|${j.job_type || ""}`, true);
+  for (const { customer: c, service: s, due, status } of servicesDue(customers, services, settings.due_soon_days ?? 7, today)) {
+    if (bookedTypes.has(`${c.id}|${s.service}`)) continue;
     const overdue = status === "overdue";
+    const msg = MESSAGES.due(c, s.service);
     items.push({
-      key: `book:${c.id}:${due}`,
+      key: `book:${s.id}:${due}`,
       kind: overdue ? "book_overdue" : "book_soon",
-      title: `Book ${c.name}`,
-      why: `${overdue ? "Was due" : "Due"} ${formatDate(due)} · every ${c.frequency_weeks} weeks`,
+      title: `Book ${c.name} - ${s.service.toLowerCase()}`,
+      why: `${overdue ? "Was due" : "Due"} ${formatDate(due)} · every ${s.frequency_weeks} weeks${s.price != null ? ` · usually ${Number(s.price).toFixed(0)}` : ""}`,
       customer: c,
+      service: s,
+      ref: s,
       primary: { label: "Book it", action: "schedule" },
-      secondary: c.phone ? { label: "Text first", href: smsLink(c.phone, MESSAGES.due(c)), logs: `Texted ${c.name} about their next ${BUSINESS.vocab.service}` } : null,
+      secondary: c.phone ? { label: "Text first", href: smsLink(c.phone, msg), logs: `Texted ${c.name} about their ${s.service.toLowerCase()}` } : c.email ? { label: "Preview & email", action: "email", draft: emailDraft(c, `Time for your ${s.service.toLowerCase()}? - ${BUSINESS.name}`, msg), logs: `Emailed ${c.name} about their ${s.service.toLowerCase()}` } : null,
       sortKey: daysBetween(today, due),
     });
   }
@@ -144,7 +154,7 @@ export function buildTodos({ customers = [], jobs = [], invoices = [], quotes = 
   }
 
   // One-offs not seen in a while
-  for (const c of customersLapsed(customers, settings.lapsed_days ?? 180, today)) {
+  for (const c of customersLapsed(customers, settings.lapsed_days ?? 180, today, services)) {
     const months = Math.round(daysBetween(c.last_service_date, today) / 30);
     items.push({
       key: `reach:${c.id}:${c.last_service_date}`,
@@ -152,7 +162,7 @@ export function buildTodos({ customers = [], jobs = [], invoices = [], quotes = 
       title: `Call ${c.name}`,
       why: `Last ${BUSINESS.vocab.service} ${months} months ago · one-off`,
       customer: c,
-      primary: c.phone ? { label: "Call", href: telLink(c.phone), logs: `Called ${c.name} to see if they want another ${BUSINESS.vocab.service}` } : { label: "No phone on file", disabled: true },
+      primary: c.phone ? { label: "Call", href: telLink(c.phone), logs: `Called ${c.name} to see if they want another ${BUSINESS.vocab.service}` } : c.email ? { label: "Preview & email", action: "email", draft: emailDraft(c, `It's been a while - ${BUSINESS.name}`, MESSAGES.reach(c)), logs: `Emailed ${c.name} to see if they want another ${BUSINESS.vocab.service}` } : { label: "No phone on file", disabled: true },
       secondary: c.phone ? { label: "Text", href: smsLink(c.phone, MESSAGES.reach(c)), logs: `Texted ${c.name} to see if they want another ${BUSINESS.vocab.service}` } : null,
       sortKey: -months,
     });

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Plus, CalendarDays, Loader2, X, AlertTriangle, Archive, Ban } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, PrimaryBar, money } from "./ui";
 import { formatDate, formatTime, todayStr, addDays, nextDueDate } from "../lib/dates";
-import { customersDue } from "../lib/today";
+import { servicesDue } from "../lib/today";
 import { PRICE_GROUPS } from "../lib/pricing";
 import { PhotoStrip } from "./JobPhotos";
 import MonthView from "./MonthView";
@@ -10,13 +10,13 @@ import MonthView from "./MonthView";
 // A quote here (scheduling straight off an accepted quote) pre-fills price
 // and description from what was actually quoted - still fully editable in
 // the form, just a sane starting point instead of a blank one to remember.
-function emptyJob(customerId = "", date = todayStr(), quote = null) {
+function emptyJob(customerId = "", date = todayStr(), quote = null, service = null) {
   return {
     customer_id: customerId,
     scheduled_date: date,
     scheduled_time: "",
-    job_type: "",
-    price: quote?.amount ?? "",
+    job_type: service?.service || "",
+    price: quote?.amount ?? service?.price ?? "",
     notes: quote?.description || "",
     status: "scheduled",
     quote_id: quote?.id || null,
@@ -173,6 +173,7 @@ export default function Schedule({
   customers,
   jobs,
   quotes = [],
+  services = [],
   settings = {},
   onSave,
   onComplete,
@@ -182,6 +183,7 @@ export default function Schedule({
   onConvertAndSchedule,
   draftCustomer,
   draftQuote,
+  draftService,
   onDraftConsumed,
 }) {
   const [filter, setFilter] = useState("upcoming");
@@ -194,8 +196,9 @@ export default function Schedule({
 
   useEffect(() => {
     if (draftCustomer) {
-      const due = nextDueDate(draftCustomer) || todayStr();
-      setEditing(emptyJob(draftCustomer.id, due, draftQuote));
+      const svcDue = draftService?.last_done ? addDays(draftService.last_done, draftService.frequency_weeks * 7) : null;
+      const due = svcDue && svcDue >= todayStr() ? svcDue : nextDueDate(draftCustomer) || todayStr();
+      setEditing(emptyJob(draftCustomer.id, due, draftQuote, draftService));
       onDraftConsumed();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,11 +223,11 @@ export default function Schedule({
   // Work that should be booked but isn't: recurring customers who are due
   // with nothing in the diary, and accepted quotes with no job against them.
   const needsBooking = useMemo(() => {
-    const booked = new Set(jobs.filter((j) => j.status === "scheduled" && j.scheduled_date >= today).map((j) => j.customer_id));
-    const due = customersDue(customers, settings.due_soon_days ?? 7).filter(({ customer }) => !booked.has(customer.id));
+    const booked = new Set(jobs.filter((j) => j.status === "scheduled" && j.scheduled_date >= today).map((j) => `${j.customer_id}|${j.job_type || ""}`));
+    const due = servicesDue(customers, services, settings.due_soon_days ?? 7, today).filter(({ customer, service }) => !booked.has(`${customer.id}|${service.service}`));
     const quoted = quotes.filter((q) => q.status === "accepted" && !jobs.some((j) => j.quote_id === q.id));
     return { due, quoted };
-  }, [customers, jobs, quotes, settings.due_soon_days, today]);
+  }, [customers, jobs, quotes, services, settings.due_soon_days, today]);
 
   const save = async (form) => {
     setSaving(true);
@@ -322,19 +325,19 @@ export default function Schedule({
         <div className="mt-8">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700 mb-2 px-1">Needs booking</div>
           <div className="space-y-2">
-            {needsBooking.due.map(({ customer: c, status }) => {
-              const due = nextDueDate(c);
+            {needsBooking.due.map(({ customer: c, service: s, due, status }) => {
               return (
-                <Card key={c.id} className="px-4 py-3">
+                <Card key={s.id} className="px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="font-medium text-slate-900 truncate">{c.name}</span>
+                        <span className="text-xs text-slate-500">{s.service}</span>
                         <StatusPill status={status} />
                       </div>
-                      <div className="text-xs text-slate-500 mt-0.5">{status === "overdue" ? "Was due" : "Due"} {formatDate(due)} · every {c.frequency_weeks} weeks</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{status === "overdue" ? "Was due" : "Due"} {formatDate(due)} · every {s.frequency_weeks} weeks{s.price != null ? ` · usually ${money(s.price)}` : ""}</div>
                     </div>
-                    <Button className="!px-3 !py-2 !text-xs shrink-0" onClick={() => setEditing(emptyJob(c.id, due >= today ? due : today))}>Book it</Button>
+                    <Button className="!px-3 !py-2 !text-xs shrink-0" onClick={() => setEditing(emptyJob(c.id, due >= today ? due : today, null, s))}>Book it</Button>
                   </div>
                 </Card>
               );

@@ -87,6 +87,10 @@ export const saveSettings = (...a) => impl().saveSettings(...a);
 
 export const fetchCustomerNotes = (...a) => impl().fetchCustomerNotes(...a);
 
+export const fetchCustomerServices = (...a) => impl().fetchCustomerServices(...a);
+export const upsertCustomerService = (...a) => impl().upsertCustomerService(...a);
+export const archiveCustomerService = (...a) => impl().archiveCustomerService(...a);
+
 export const fetchTodoState = (...a) => impl().fetchTodoState(...a);
 export const setTodoState = (...a) => impl().setTodoState(...a);
 export const addCustomerNote = (...a) => impl().addCustomerNote(...a);

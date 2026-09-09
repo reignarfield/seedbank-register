@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Search, Plus, Users, Loader2, Archive, X, History } from "lucide-react";
 import { Card, Field, TextInput, Select, TextArea, Button, StatusPill, EmptyState, PrimaryBar } from "./ui";
 import { dueStatus, formatDate, nextDueDate } from "../lib/dates";
-import { customersLapsed } from "../lib/today";
+import { customersLapsed, nextServiceDates } from "../lib/today";
+import ServicesEditor from "./ServicesEditor";
 import PlaceGlance from "./PlaceGlance";
 import Leads from "./Leads";
 
@@ -24,7 +25,7 @@ function emptyCustomer() {
   return { name: "", phone: "", email: "", address: "", notes: "", access_notes: "", frequency_weeks: "", last_service_date: "", status: "active" };
 }
 
-function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
+function CustomerForm({ initial, notes, services, onSaveService, onRemoveService, onCancel, onSave, onDelete, saving }) {
   const [form, setForm] = useState(initial);
   useEffect(() => setForm(initial), [initial]);
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -54,18 +55,14 @@ function CustomerForm({ initial, notes, onCancel, onSave, onDelete, saving }) {
             <TextInput value={form.address || ""} onChange={(e) => set("address", e.target.value)} placeholder="Street, suburb" />
             <PlaceGlance address={form.address} lat={form.lat} lng={form.lng} onCoords={(lat, lng) => setForm((f) => ({ ...f, lat, lng }))} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="How often">
-              <Select value={form.frequency_weeks ?? ""} onChange={(e) => set("frequency_weeks", e.target.value)}>
-                {FREQUENCY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Last visit">
-              <TextInput type="date" value={form.last_service_date || ""} onChange={(e) => set("last_service_date", e.target.value)} />
-            </Field>
-          </div>
+          {isEdit ? (
+            <ServicesEditor customerId={form.id} services={services} onSave={onSaveService} onRemove={onRemoveService} />
+          ) : (
+            <p className="text-xs text-slate-400">Save them first, then add their regular services (windows every 8 weeks, solar once a year) from this screen.</p>
+          )}
+          <Field label="Last visit">
+            <TextInput type="date" value={form.last_service_date || ""} onChange={(e) => set("last_service_date", e.target.value)} />
+          </Field>
           <Field label="Status">
             <Select value={form.status} onChange={(e) => set("status", e.target.value)}>
               <option value="active">Active</option>
@@ -123,6 +120,9 @@ export default function Customers({
   onDraftConsumed,
   lapsedDays = 180,
   dueSoonDays = 7,
+  services = [],
+  onSaveService,
+  onRemoveService,
   leads = [],
   onSetLeadStatus,
   onDeleteLead,
@@ -133,7 +133,7 @@ export default function Customers({
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const lapsed = useMemo(() => customersLapsed(customers, lapsedDays), [customers, lapsedDays]);
+  const lapsed = useMemo(() => customersLapsed(customers, lapsedDays, undefined, services), [customers, lapsedDays, services]);
   const newEnquiries = useMemo(() => leads.filter((l) => l.status === "new").length, [leads]);
 
   useEffect(() => {
@@ -228,8 +228,10 @@ export default function Customers({
           ) : (
             <div className="space-y-2">
               {filtered.map((c) => {
-                const status = dueStatus(c, { soonDays: dueSoonDays });
-                const due = nextDueDate(c);
+                const svc = nextServiceDates(services, c.id);
+                const first = svc[0];
+                const status = first?.due ? dueStatus({ frequency_weeks: first.frequency_weeks, last_service_date: first.last_done }, { soonDays: dueSoonDays }) : null;
+                const due = first?.due || null;
                 return (
                   <Card key={c.id} className="px-4 py-3 hover:border-blue-300 transition-colors">
                     <button onClick={() => setEditing(c)} className="w-full flex items-center justify-between gap-3 text-left">
@@ -240,7 +242,7 @@ export default function Customers({
                           {status && status !== "scheduled" && <StatusPill status={status} />}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5 truncate">
-                          {[c.address, tab === "reach" ? `last visit ${formatDate(c.last_service_date)}` : c.frequency_weeks ? `every ${c.frequency_weeks}w${due ? ` · next ${formatDate(due)}` : ""}` : jobCountByCustomer.get(c.id) ? `${jobCountByCustomer.get(c.id)} jobs` : "one-off"].filter(Boolean).join(" · ")}
+                          {[c.address, tab === "reach" ? `last visit ${formatDate(c.last_service_date)}` : svc.length ? `${svc.map((s) => s.service.toLowerCase()).join(", ")}${due ? ` · next ${formatDate(due)}` : ""}` : jobCountByCustomer.get(c.id) ? `${jobCountByCustomer.get(c.id)} jobs` : "one-off"].filter(Boolean).join(" · ")}
                         </div>
                       </div>
                     </button>
@@ -262,6 +264,9 @@ export default function Customers({
         <CustomerForm
           initial={editing}
           notes={editing.id ? customerNotes.filter((n) => n.customer_id === editing.id).slice(0, 8) : []}
+          services={services}
+          onSaveService={onSaveService}
+          onRemoveService={onRemoveService}
           onCancel={() => setEditing(null)}
           onSave={save}
           onDelete={remove}
