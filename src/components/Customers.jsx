@@ -25,7 +25,7 @@ function emptyCustomer() {
   return { name: "", phone: "", email: "", address: "", notes: "", access_notes: "", frequency_weeks: "", last_service_date: "", status: "active" };
 }
 
-function CustomerForm({ initial, notes, services, onSaveService, onRemoveService, onCancel, onSave, onDelete, saving }) {
+function CustomerForm({ initial, notes, services, serviceDefaults, onSaveService, onRemoveService, onCancel, onSave, onDelete, saving }) {
   const [form, setForm] = useState(initial);
   useEffect(() => setForm(initial), [initial]);
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }));
@@ -56,7 +56,7 @@ function CustomerForm({ initial, notes, services, onSaveService, onRemoveService
             <PlaceGlance address={form.address} lat={form.lat} lng={form.lng} onCoords={(lat, lng) => setForm((f) => ({ ...f, lat, lng }))} />
           </Field>
           {isEdit ? (
-            <ServicesEditor customerId={form.id} services={services} onSave={onSaveService} onRemove={onRemoveService} />
+            <ServicesEditor customerId={form.id} services={services} defaults={serviceDefaults} onSave={onSaveService} onRemove={onRemoveService} />
           ) : (
             <p className="text-xs text-slate-400">Save them first, then add their regular services (windows every 8 weeks, solar once a year) from this screen.</p>
           )}
@@ -121,6 +121,7 @@ export default function Customers({
   lapsedDays = 180,
   dueSoonDays = 7,
   services = [],
+  serviceDefaults = {},
   onSaveService,
   onRemoveService,
   leads = [],
@@ -265,6 +266,7 @@ export default function Customers({
           initial={editing}
           notes={editing.id ? customerNotes.filter((n) => n.customer_id === editing.id).slice(0, 8) : []}
           services={services}
+          serviceDefaults={serviceDefaults}
           onSaveService={onSaveService}
           onRemoveService={onRemoveService}
           onCancel={() => setEditing(null)}

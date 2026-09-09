@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { listPasskeys, registerPasskey, deletePasskey, passkeysSupported } from "../lib/api";
 import { pushAvailable, currentSubscription, subscribeThisDevice, unsubscribeThisDevice } from "../lib/push";
-import { Loader2, Building2, Car, Users, ClipboardList, Bell, Wrench, Globe, FlaskConical, Download, ChevronRight, MousePointerClick, ShieldAlert, LogOut, Plus, Fingerprint, Smartphone, Megaphone } from "lucide-react";
+import { Loader2, Building2, Car, Users, ClipboardList, Bell, Wrench, Globe, FlaskConical, Download, ChevronRight, MousePointerClick, ShieldAlert, LogOut, Plus, Fingerprint, Smartphone, Megaphone, Repeat } from "lucide-react";
 import { formatDate, todayStr } from "../lib/dates";
 import { Card, Field, TextInput, Button, SectionTitle } from "./ui";
 import EditChecklistModal from "./EditChecklistModal";
@@ -151,6 +151,9 @@ export default function Settings({
   );
 
   const [editingList, setEditingList] = useState(null); // "everyday" | a PRICE_GROUPS title
+  const CYCLES = [["", "One-off"], [2, "Every 2 weeks"], [4, "Every 4 weeks"], [6, "Every 6 weeks"], [8, "Every 8 weeks"], [12, "Every 12 weeks"], [26, "Every 6 months"], [52, "Once a year"]];
+  const defaults = settings.service_defaults || {};
+  const setDefault = (title, v) => onSave({ service_defaults: { ...defaults, [title]: v === "" ? null : Number(v) } });
   const [showTaxPack, setShowTaxPack] = useState(false);
 
   const saveList = async (items) => {
@@ -232,6 +235,19 @@ export default function Settings({
           </Field>
         </div>
         <SaveRow dirty={people.dirty} saving={people.saving} onSave={() => people.save()} />
+      </Section>
+
+      <Section icon={Repeat} title="Regular by default" blurb="How often each kind of job usually comes round. After a job of that kind, the app asks once whether to make it a regular for that customer - it never assumes.">
+        <div className="divide-y divide-slate-100">
+          {PRICE_GROUPS.map((g) => (
+            <div key={g.title} className="flex items-center justify-between gap-3 py-2">
+              <div className="text-sm text-slate-800">{g.title}</div>
+              <select value={defaults[g.title] ?? ""} onChange={(e) => setDefault(g.title, e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-900">
+                {CYCLES.map(([v, l]) => <option key={String(v)} value={v}>{l}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
       </Section>
 
       <Section icon={ClipboardList} title="Kit lists" blurb="What to check before leaving. The everyday list shows on every working day; a type's extras show only when that kind of job is on.">

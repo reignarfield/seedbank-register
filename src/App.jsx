@@ -459,6 +459,12 @@ export default function App() {
       case "markPaid":
         await markPaid(item.ref);
         break;
+      case "makeRegular":
+        await upsertCustomerService({ customer_id: item.customer.id, service: item.ref.job_type, frequency_weeks: action.weeks, last_done: item.ref.scheduled_date, price: item.ref.price ?? null });
+        await dismissTodo(item);
+        await reload(["services"]);
+        setToast({ message: `${item.ref.job_type} is now every ${action.weeks} weeks for ${item.customer.name}.` });
+        break;
       case "renewalDone":
         await removeRenewal(item.ref.id);
         break;
@@ -822,6 +828,7 @@ export default function App() {
           draft={customerDraft}
           onDraftConsumed={() => setCustomerDraft(null)}
           services={services}
+          serviceDefaults={settings.service_defaults || {}}
           onSaveService={saveService}
           onRemoveService={removeService}
           leads={leads}

@@ -213,6 +213,9 @@ alter table public.settings add column if not exists packing_checklist text[] no
 ];
 alter table public.settings add column if not exists type_checklists jsonb not null default '{}'::jsonb;
 alter table public.settings add column if not exists day_started_date date;
+-- How often each kind of job usually repeats (null = one-off by nature).
+alter table public.settings add column if not exists service_defaults jsonb not null default
+  '{ "Window Cleaning": 8, "Pressure Cleaning": 26, "Solar Panel Cleaning": 52, "Gutter Cleaning": 52, "Car Cleaning": null, "House / Office Cleaning": 4, "Bond Cleans": null, "Add-ons": null }'::jsonb;
 
 insert into public.settings (id) values (true) on conflict do nothing;
 

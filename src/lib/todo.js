@@ -34,7 +34,7 @@ export const MESSAGES = {
   reply: (l) => `Hi ${first(l.name)}, ${BUSINESS.name} here - thanks for getting in touch. When's a good time for a quick chat about what you're after?`,
 };
 
-const ORDER = ["chase", "confirm", "book_overdue", "reply", "invoice", "book_quote", "book_soon", "reach", "renewal"];
+const ORDER = ["chase", "confirm", "book_overdue", "reply", "invoice", "book_quote", "book_soon", "make_regular", "reach", "renewal"];
 
 // An email the app would send, shown in full before it goes. Body is plain
 // text; the preview turns it into a simple email.
@@ -149,6 +149,34 @@ export function buildTodos({ customers = [], jobs = [], invoices = [], quotes = 
       customer: c,
       ref: q,
       primary: { label: "Book it", action: c ? "scheduleQuote" : "convertQuote" },
+      sortKey: 0,
+    });
+  }
+
+  // A finished job of a kind that usually repeats, for a customer who isn't
+  // on that cycle yet: ask once. The default cycle is Tyson's (Settings ->
+  // Regular by default); a kind with no default - a bond clean - never asks.
+  const defaults = settings.service_defaults || {};
+  const onCycle = new Set(services.filter((s) => !s.archived_at).map((s) => `${s.customer_id}|${s.service}`));
+  const suggested = new Set();
+  for (const j of [...jobs].sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date))) {
+    if (j.archived_at || j.status !== "completed" || !j.job_type) continue;
+    const weeks = defaults[j.job_type];
+    if (!weeks) continue;
+    if (daysBetween(j.scheduled_date, today) > 60) continue;
+    const k = `${j.customer_id}|${j.job_type}`;
+    if (onCycle.has(k) || suggested.has(k)) continue;
+    const c = byId.get(j.customer_id);
+    if (!c) continue;
+    suggested.add(k);
+    items.push({
+      key: `regular:${j.customer_id}:${j.job_type}`,
+      kind: "make_regular",
+      title: `Make ${j.job_type.toLowerCase()} regular for ${c.name}?`,
+      why: `Done ${formatDate(j.scheduled_date)}${j.price ? ` for ${Number(j.price).toFixed(0)}` : ""} · you usually do these every ${weeks} weeks`,
+      customer: c,
+      ref: j,
+      primary: { label: `Yes, every ${weeks} weeks`, action: "makeRegular", weeks },
       sortKey: 0,
     });
   }

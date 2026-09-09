@@ -317,7 +317,8 @@ export const DEFAULT_SETTINGS = {
   lapsed_days: 180,
   renewal_lead_days: 30,
   due_soon_days: 7,
-  reminders: { owner_digest: true, due_soon: false, invoice_overdue: false, job_confirmation: false, review_request: false },
+  reminders: { owner_digest: false, due_soon: false, invoice_overdue: false, job_confirmation: false, review_request: false },
+  service_defaults: { "Window Cleaning": 8, "Pressure Cleaning": 26, "Solar Panel Cleaning": 52, "Gutter Cleaning": 52, "Car Cleaning": null, "House / Office Cleaning": 4, "Bond Cleans": null, "Add-ons": null },
 };
 
 export async function saveSettings(settings) {

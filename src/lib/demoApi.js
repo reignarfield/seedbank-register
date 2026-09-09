@@ -43,7 +43,7 @@ function seed() {
     { id: "dj8", customer_id: "dc7", scheduled_date: addDays(T, -30), status: "completed", price: 180, notes: "Shopfront glass", completed_at: new Date(Date.parse(addDays(T, -30))).toISOString(), job_type: "Window Cleaning", route_order: null, quote_id: null },
     { id: "dj9", customer_id: "dc1", scheduled_date: addDays(T, -56), status: "completed", price: 250, notes: "", completed_at: new Date(Date.parse(addDays(T, -56))).toISOString(), job_type: "Window Cleaning", route_order: null, quote_id: null },
     // Completed but price was skipped - no invoice raised
-    { id: "dj10", customer_id: "dc5", scheduled_date: addDays(T, -8), status: "completed", price: null, notes: "Quick tidy-up, agreed to sort price later", completed_at: new Date(Date.parse(addDays(T, -8))).toISOString(), job_type: null, route_order: null, quote_id: null },
+    { id: "dj10", customer_id: "dc5", scheduled_date: addDays(T, -8), status: "completed", price: null, notes: "Quick tidy-up, agreed to sort price later", completed_at: new Date(Date.parse(addDays(T, -8))).toISOString(), job_type: "House / Office Cleaning", route_order: null, quote_id: null },
     { id: "dj11", customer_id: "dc2", scheduled_date: addDays(T, -14), status: "cancelled", price: 300, notes: "Customer away", completed_at: null, job_type: "Pressure Cleaning", route_order: null, quote_id: null },
   ];
 
@@ -102,7 +102,8 @@ function seed() {
     lapsed_days: 180,
     renewal_lead_days: 30,
     due_soon_days: 7,
-    reminders: { owner_digest: true, due_soon: false, invoice_overdue: false, job_confirmation: false, review_request: false },
+    reminders: { owner_digest: false, due_soon: false, invoice_overdue: false, job_confirmation: false, review_request: false },
+    service_defaults: { "Window Cleaning": 8, "Pressure Cleaning": 26, "Solar Panel Cleaning": 52, "Gutter Cleaning": 52, "Car Cleaning": null, "House / Office Cleaning": 4, "Bond Cleans": null, "Add-ons": null },
   };
 
   // What the app did recently, so the feed has something to show.

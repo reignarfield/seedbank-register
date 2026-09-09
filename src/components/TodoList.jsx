@@ -17,6 +17,7 @@ const KIND_TONE = {
   invoice: "text-amber-700",
   book_quote: "text-slate-700",
   book_soon: "text-slate-700",
+  make_regular: "text-slate-700",
   reach: "text-slate-600",
   renewal: "text-slate-600",
 };

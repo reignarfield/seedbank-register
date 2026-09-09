@@ -17,7 +17,7 @@ const FREQ = [
   { value: 52, label: "Once a year" },
 ];
 
-export default function ServicesEditor({ customerId, services, onSave, onRemove }) {
+export default function ServicesEditor({ customerId, services, defaults = {}, onSave, onRemove }) {
   const [adding, setAdding] = useState(null); // { service, frequency_weeks, last_done, price }
   const mine = services.filter((s) => s.customer_id === customerId && !s.archived_at);
 
@@ -55,7 +55,7 @@ export default function ServicesEditor({ customerId, services, onSave, onRemove 
         <div className="mt-2 border border-blue-100 bg-blue-50/50 rounded-lg p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <Field label="Service">
-              <Select value={adding.service} onChange={(e) => setAdding({ ...adding, service: e.target.value })}>
+              <Select value={adding.service} onChange={(e) => setAdding({ ...adding, service: e.target.value, frequency_weeks: defaults[e.target.value] || adding.frequency_weeks })}>
                 <option value="">— pick —</option>
                 {PRICE_GROUPS.map((g) => <option key={g.title} value={g.title}>{g.title}</option>)}
               </Select>
